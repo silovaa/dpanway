@@ -1,4 +1,4 @@
-module widget_way;
+module wayland;
 
 import core.sys.posix.poll: poll, pollfd, POLLIN, POLLOUT;
 import std.exception;
@@ -10,7 +10,7 @@ enum EventT
     count
 }
 
-class App
+class WlState
 {
     this()
     {
@@ -39,7 +39,10 @@ class App
         if (wl_display_roundtrip(m_display) < 0) 
             throw "wl_display_roundtrip() failed";
             
-       // m_cursor.create(24);
+        // m_cursor.create(24);
+
+        // egl init
+
 
         fds[EventT.system].fd = sfd;
 		fds[EventT.system].events = POLLIN;
@@ -51,10 +54,11 @@ class App
 
     ~this()
     {
-        //zwlr_layer_shell_v1_destroy(m_layer_shell);
+        wl_proxy_destroy(m_layer_shell);
 	    wl_proxy_destroy(m_compositor);
 	    wl_proxy_destroy(m_shm);
 	    wl_proxy_destroy(m_registry);
+        wl_proxy_destroy(m_xdg_wm_base);
 	    wl_display_disconnect(m_display);
     }
 
@@ -95,6 +99,11 @@ class App
         }
     }
 
+    Widget createWindow()
+    {
+
+    }
+
 private:
     pollfd fds[EventT.count];
     bool isRuning = false;
@@ -107,6 +116,9 @@ private:
 	wl_proxy* m_compositor;
 	wl_proxy* m_shm;
 	wl_proxy* m_layer_shell;
+    wl_proxy* m_screen;
+    wl_proxy* m_xdg_wm_base;
+
 	//xdg_activation_v1 *m_xdg_activation;
 	//struct wp_cursor_shape_manager_v1 *cursor_shape_manager;
 
@@ -212,12 +224,12 @@ extern (C) {
                                                             wl_shm_interface, name, 
                                                             wl_shm_interface.name, 
                                                             1, null);
-        // } else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
-        //     state.layer_shell = wl_proxy_marshal_constructor(registry, 
-        //                                                     WL_REGISTRY_BIND, 
-        //                                                     zwlr_layer_shell_v1_interface, name, 
-        //                                                     zwlr_layer_shell_v1_interface.name, 
-        //                                                     4, null);
+        } else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
+            state.layer_shell = wl_proxy_marshal_constructor(registry, 
+                                                            WL_REGISTRY_BIND, 
+                                                            zwlr_layer_shell_v1_interface, name, 
+                                                            zwlr_layer_shell_v1_interface.name, 
+                                                            4, null);
         } else if (strcmp(interface, wl_seat_interface.name) == 0) {
             // wl_seat* seat = wl_proxy_marshal_constructor(registry, 
             //                                                 WL_REGISTRY_BIND, 
@@ -229,21 +241,20 @@ extern (C) {
             writeln("add seat name:", interface);
 
         } else if (strcmp(interface, wl_output_interface.name) == 0) {
-            // wl_output *output = wl_proxy_marshal_constructor(registry, 
-            //                                                 WL_REGISTRY_BIND, 
-            //                                                 wl_output_interface, name, 
-            //                                                 wl_output_interface.name, 
-            //                                                 4, null);
-            // create_output(state, output, name);
+            state.m_screen = wl_proxy_marshal_constructor(registry, 
+                                                            WL_REGISTRY_BIND, 
+                                                            wl_output_interface, name, 
+                                                            wl_output_interface.name, 
+                                                            4, null);
 
             writeln("add output name:", interface);
 
-        } else if (strcmp(interface, xdg_activation_v1_interface.name) == 0) {
-            // state.m_xdg_activation = wl_proxy_marshal_constructor(registry, 
-            //                                                 WL_REGISTRY_BIND, 
-            //                                                 xdg_activation_v1_interface, name, 
-            //                                                 xdg_activation_v1_interface.name, 
-            //                                                 1, null);
+        } else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
+            state.m_xdg_wm_base = wl_proxy_marshal_constructor(registry, 
+                                                            WL_REGISTRY_BIND, 
+                                                            xdg_wm_base_interface, name, 
+                                                            xdg_wm_base_interface.name, 
+                                                            1, null);
              writeln("add xdg_activation name:", interface);
         } else if (strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
             // state.cursor_shape_manager = wl_proxy_marshal_constructor(registry, 
