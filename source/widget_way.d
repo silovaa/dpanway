@@ -181,13 +181,13 @@ extern (C) {
     void wl_proxy_destroy(wl_proxy*);
 
     struct wl_interface;
-    struct wl_compositor_interface;
-    struct wl_shm_interface;
-    struct zwlr_layer_shell_v1_interface;
-    struct wl_seat_interface;
-    struct wl_output_interface;
-    struct xdg_activation_v1_interface;
-    struct wp_cursor_shape_manager_v1_interface;
+    // struct wl_compositor_interface;
+    // struct wl_shm_interface;
+    // struct zwlr_layer_shell_v1_interface;
+    // struct wl_seat_interface;
+    // struct wl_output_interface;
+    // struct xdg_activation_v1_interface;
+    // struct wp_cursor_shape_manager_v1_interface;
 
     int wl_proxy_add_listener(wl_proxy*, Callback*, void* /*data*/);
     wl_proxy* wl_proxy_marshal_constructor(wl_proxy*, uint opcode,
@@ -259,5 +259,4 @@ extern (C) {
     {
         writeln("handle_global_rem");
     }
-    
 }
