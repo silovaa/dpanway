@@ -1,0 +1,15 @@
+{
+	"authors": [
+		"Silov Andrey"
+	],
+	"copyright": "Copyright © 2024, andrey",
+	"description": "simply wlroot panel",
+	"license": "LGPL-3.0-or-later",
+	"name": "panway",
+
+	"sourceFiles": [
+		"protocol/wlr_layer_shell_protocol.c"
+	],
+
+	"libs": ["wayland-client"]
+}
