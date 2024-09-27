@@ -4,9 +4,8 @@ import egl;
 void main()
 {
     try {
-        auto app = new WlState;
-        auto context = new EglState(app);
-        auto window = new Window(context);
+        auto wl = new WlState;
+        auto window = new Window!Egl(wl);
 
         window.size(200, 400);
         

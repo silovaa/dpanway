@@ -116,8 +116,9 @@ private:
 	wl_proxy* m_compositor;
 	wl_proxy* m_shm;
 	wl_proxy* m_layer_shell;
-    wl_proxy* m_screen;
     wl_proxy* m_xdg_wm_base;
+
+    Screen m_screen;
 
 	//xdg_activation_v1 *m_xdg_activation;
 	//struct wp_cursor_shape_manager_v1 *cursor_shape_manager;
@@ -154,123 +155,68 @@ private:
 //     }	
 // }
 
-struct EglState
+struct Screen
 {
-    EGLDisplay egl_display;
-    EGLConfig  egl_config;
-    EGLContext egl_context;
+    wl_proxy* output;
+    Wl_output_listener output_listener;
 
-    bool create(wl_display* display)
+    uint global_name;
+    uint scale = 1;
+    const(char)* name;
+
+    this(wl_proxy* out, uint id, const(char)* name_str) 
     {
-        auto client_exts_str =
-		    eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
+        output = out; global_name = id; name = name_str;
+        wl_proxy_add_listener(output, cast(Callback*) &output_listener, this);
+    }
+
+    extern (C) {
+        void noop(){};
+
+        struct Wl_output_listener
+        {
+            void function (void *data,
+                        wl_proxy *wl_output,
+                        int x,
+                        int y,
+                        int physical_width,
+                        int physical_height,
+                        int subpixel,
+                        const(char)* make,
+                        const(char)* model,
+                        int transform) geometry = noop;
             
-	    if (client_exts_str == null) {
-		    if (eglGetError() == EGL_BAD_DISPLAY) {
-			    fprintf(stderr, "EGL_EXT_client_extensions not supported\n");
-		    } else {
-			    fprintf(stderr, "Failed to query EGL client extensions\n");
-		    }
+            void function (void *data,
+		                wl_proxy *wl_output,
+		                uint flags,
+		                int width,
+		                int height,
+		                int refresh) mode = noop;
 
-            return false;
-	    }
+            void function (void *data,
+		                wl_proxy *wl_output) done = noop;
 
-        if (!strstr(client_exts_str, "EGL_EXT_platform_base")) {
-            fprintf(stderr, "EGL_EXT_platform_base not supported\n");
-            return false;
+            void function (void *data,
+		                wl_proxy *wl_output,
+		                int factor) scale = noop;
+
+            void function (void *data,
+		                wl_proxy *wl_output,
+		                const(char)* name) name = noop;
+
+            void function (void *data,
+			            wl_proxy *wl_output,
+			            const(char)* description) description = noop;
         }
-
-        if (!strstr(client_exts_str, "EGL_EXT_platform_wayland")) {
-            fprintf(stderr, "EGL_EXT_platform_wayland not supported\n");
-            return false;
-        }
-
-        eglGetPlatformDisplayEXT =
-            (void *)eglGetProcAddress("eglGetPlatformDisplayEXT");
-        if (eglGetPlatformDisplayEXT == NULL) {
-            fprintf(stderr, "Failed to get eglGetPlatformDisplayEXT\n");
-            return false;
-        }
-
-        eglCreatePlatformWindowSurfaceEXT =
-            (void *)eglGetProcAddress("eglCreatePlatformWindowSurfaceEXT");
-        if (eglCreatePlatformWindowSurfaceEXT == NULL) {
-            fprintf(stderr, "Failed to get eglCreatePlatformWindowSurfaceEXT\n");
-            return false;
-        }
-
-        egl_display =
-            eglGetPlatformDisplayEXT(EGL_PLATFORM_WAYLAND_EXT,
-                display, NULL);
-        if (egl_display == EGL_NO_DISPLAY) {
-            fprintf(stderr, "Failed to create EGL display\n");
-            goto error;
-        }
-
-        if (eglInitialize(egl_display, NULL, NULL) == EGL_FALSE) {
-            fprintf(stderr, "Failed to initialize EGL\n");
-            goto error;
-        }
-
-        EGLint matched = 0;
-        if (!eglChooseConfig(egl_display, config_attribs,
-                &egl_config, 1, &matched)) {
-            fprintf(stderr, "eglChooseConfig failed\n");
-            goto error;
-        }
-        if (matched == 0) {
-            fprintf(stderr, "Failed to match an EGL config\n");
-            goto error;
-        }
-
-        egl_context =
-            eglCreateContext(egl_display, egl_config,
-                EGL_NO_CONTEXT, context_attribs);
-        if (egl_context == EGL_NO_CONTEXT) {
-            fprintf(stderr, "Failed to create EGL context\n");
-            goto error;
-        }
-
-        return true;
-
-    error:
-        eglMakeCurrent(EGL_NO_DISPLAY, EGL_NO_SURFACE,
-                    EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        if (egl_display) {
-            eglTerminate(egl_display);
-        }
-        eglReleaseThread();
-        return false;
     }
 
-    ~this()
-    {
-        eglMakeCurrent(egl_display, EGL_NO_SURFACE,
-		            EGL_NO_SURFACE, EGL_NO_CONTEXT);
-	    eglDestroyContext(egl_display, egl_context);
-	    eglTerminate(egl_display);
-	    eglReleaseThread();
+    void output_handle_geometry(void *data, wl_proxy *wl_output,
+		int x, int y, int phy_width, int phy_height,
+		int subpixel, const(char) *make, const(char) *model,
+		int transform) {
+        struct mako_output *output = data;
+        output->subpixel = subpixel;
     }
-
-private:
-
-    PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplayEXT;
-    PFNEGLCREATEPLATFORMWINDOWSURFACEEXTPROC eglCreatePlatformWindowSurfaceEXT;
-
-    const EGLint config_attribs[] = {
-        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-        EGL_RED_SIZE, 1,
-        EGL_GREEN_SIZE, 1,
-        EGL_BLUE_SIZE, 1,
-        EGL_ALPHA_SIZE, 1,
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-        EGL_NONE,
-    };
-
-    const EGLint context_attribs[] = {
-        EGL_CONTEXT_CLIENT_VERSION, 2,
-        EGL_NONE,
-    };
 }
 
 extern (C) {
