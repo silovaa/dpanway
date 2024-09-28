@@ -40,11 +40,11 @@ class Display
     ~this()
     {
         wl_proxy_destroy(m_layer_shell);
-	    wl_proxy_destroy(m_compositor);
-	    wl_proxy_destroy(m_shm);
-	    wl_proxy_destroy(m_registry);
+	wl_proxy_destroy(m_compositor);
+	wl_proxy_destroy(m_shm);
+	wl_proxy_destroy(m_registry);
         //wl_proxy_destroy(m_xdg_wm_base);
-	    wl_display_disconnect(m_display);
+	wl_display_disconnect(m_display);
     }
 
     void run()
