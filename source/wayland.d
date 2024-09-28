@@ -52,10 +52,10 @@ class Display
         if (wl_display_roundtrip(m_display) < 0) 
 		    throw "wl_display_roundtrip() failed";
 
-	    if (m_compositor is null) 
+	if (m_compositor is null) 
 		    throw "compositor doesn't support wl_compositor";
 		
-	    if (m_shm is null)
+	if (m_shm is null)
 		    throw "compositor doesn't support wl_shm";
 	
         if (m_layer_shell is null) 
@@ -108,12 +108,12 @@ private:
 
     Wl_display*    m_display;
 
-	Wl_proxy*   m_registry;
+    Wl_proxy*   m_registry;
     immutable Wl_registry_listerner m_registry_listener;
 
-	Wl_proxy* m_compositor;
-	Wl_proxy* m_shm;
-	Wl_proxy* m_layer_shell;
+    Wl_proxy* m_compositor;
+    Wl_proxy* m_shm;
+    Wl_proxy* m_layer_shell;
     //Wl_proxy* m_xdg_wm_base;
 
     LayerSurface[] m_surfaces;
