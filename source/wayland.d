@@ -3,6 +3,8 @@ module wayland;
 import core.sys.posix.poll: poll, pollfd, POLLIN, POLLOUT;
 import std.exception;
 
+import wayland_core;
+
 enum EventT
 {
     system,
@@ -10,7 +12,7 @@ enum EventT
     count
 }
 
-class WlState
+class Display
 {
     this()
     {
@@ -18,12 +20,36 @@ class WlState
                             "failed to create display");
        
 	    m_registry = wl_proxy_marshal_constructor(
-                cast(wl_proxy*) m_display,
+                cast(Wl_proxy*) m_display,
                 WL_DISPLAY_GET_REGISTRY, wl_registry_interface, null);
 
-        wl_proxy_add_listener(m_registry, cast(Callback*) &m_registry_listener, this);
+        enforce(wl_proxy_add_listener(m_registry, 
+                                    cast(Callback*) &m_registry_listener, 
+                                    this) < 0,
+                "wl_display_roundtrip() failed");
 
-	    if (wl_display_roundtrip(m_display) < 0) 
+        // m_cursor.create(24);
+
+        fds[EventT.system].fd = sfd;
+		fds[EventT.system].events = POLLIN;
+
+        fds[EventT.wayland].fd = wl_display_get_fd(m_display);
+		fds[EventT.wayland].events = POLLIN;
+    }
+
+    ~this()
+    {
+        wl_proxy_destroy(m_layer_shell);
+	    wl_proxy_destroy(m_compositor);
+	    wl_proxy_destroy(m_shm);
+	    wl_proxy_destroy(m_registry);
+        //wl_proxy_destroy(m_xdg_wm_base);
+	    wl_display_disconnect(m_display);
+    }
+
+    void run()
+    {
+        if (wl_display_roundtrip(m_display) < 0) 
 		    throw "wl_display_roundtrip() failed";
 
 	    if (m_compositor is null) 
@@ -35,35 +61,6 @@ class WlState
         if (m_layer_shell is null) 
             throw "compositor doesn't support zwlr_layer_shell_v1";
 
-        // Second roundtrip to get output metadata
-        if (wl_display_roundtrip(m_display) < 0) 
-            throw "wl_display_roundtrip() failed";
-            
-        // m_cursor.create(24);
-
-        // egl init
-
-
-        fds[EventT.system].fd = sfd;
-		fds[EventT.system].events = POLLIN;
-
-        fds[EventT.wayland].fd = wl_display_get_fd(m_display);
-		fds[EventT.wayland].events = POLLIN;
-
-    }
-
-    ~this()
-    {
-        wl_proxy_destroy(m_layer_shell);
-	    wl_proxy_destroy(m_compositor);
-	    wl_proxy_destroy(m_shm);
-	    wl_proxy_destroy(m_registry);
-        wl_proxy_destroy(m_xdg_wm_base);
-	    wl_display_disconnect(m_display);
-    }
-
-    void run()
-    {
         isRuning = true;
 
         while (isRuning) {
@@ -99,26 +96,51 @@ class WlState
         }
     }
 
-    Widget createWindow()
+    void add(LayerSurface surface)
     {
-
+        surface.prepare(m_display);
+        m_surfaces ~= surface;
     }
 
 private:
     pollfd fds[EventT.count];
     bool isRuning = false;
 
-    wl_display*    m_display;
+    Wl_display*    m_display;
 
-	wl_proxy*   m_registry;
-    wl_registry_listener m_registry_listener;
+	Wl_proxy*   m_registry;
+    immutable Wl_registry_listerner m_registry_listener;
 
-	wl_proxy* m_compositor;
-	wl_proxy* m_shm;
-	wl_proxy* m_layer_shell;
-    wl_proxy* m_xdg_wm_base;
+	Wl_proxy* m_compositor;
+	Wl_proxy* m_shm;
+	Wl_proxy* m_layer_shell;
+    //Wl_proxy* m_xdg_wm_base;
+
+    LayerSurface[] m_surfaces;
 
     Screen m_screen;
+
+    void add_screen(Wl_proxy* output, uint id, const(char)* name_str)
+    {
+        //To do добавление нескольких мониторов
+        if (m_screen.output != null) return;
+
+        m_screen.output = output; 
+        m_screen.global_name = id; 
+        m_screen.name.dup(name_str);
+
+        if (wl_proxy_add_listener(output, 
+                                cast(Callback*) &output_listener, 
+                                &m_screen) < 0)
+            writeln("err!!! output name:", name_str);
+        else {
+            foreach (LayerSurface surf; m_surfaces) {
+                
+            }
+
+            writeln("add output name:", name_str);
+        }
+    }
 
 	//xdg_activation_v1 *m_xdg_activation;
 	//struct wp_cursor_shape_manager_v1 *cursor_shape_manager;
@@ -157,26 +179,54 @@ private:
 
 struct Screen
 {
-    wl_proxy* output;
-    Wl_output_listener output_listener;
+    Wl_proxy* output;
+    immutable Wl_output_listener output_listener = {
+        geometry: handle_geometry,
+        scale:    handle_scale,
+        name:     handle_name
+    };
 
     uint global_name;
     uint scale = 1;
-    const(char)* name;
+    string name;
 
-    this(wl_proxy* out, uint id, const(char)* name_str) 
-    {
-        output = out; global_name = id; name = name_str;
-        wl_proxy_add_listener(output, cast(Callback*) &output_listener, this);
-    }
+    enum Wl_output_subpixel {
+        /**
+        * unknown geometry
+        */
+        UNKNOWN = 0,
+        /**
+        * no geometry
+        */
+        NONE = 1,
+        /**
+        * horizontal RGB
+        */
+        HORIZONTAL_RGB = 2,
+        /**
+        * horizontal BGR
+        */
+        HORIZONTAL_BGR = 3,
+        /**
+        * vertical RGB
+        */
+        VERTICAL_RGB = 4,
+        /**
+        * vertical BGR
+        */
+        VERTICAL_BGR = 5,
+    } 
 
-    extern (C) {
-        void noop(){};
+    Wl_output_subpixel subpixel;
+
+    extern (C) nothrow {
+
+        void noop(){}
 
         struct Wl_output_listener
         {
             void function (void *data,
-                        wl_proxy *wl_output,
+                        Wl_proxy *wl_output,
                         int x,
                         int y,
                         int physical_width,
@@ -187,48 +237,57 @@ struct Screen
                         int transform) geometry = noop;
             
             void function (void *data,
-		                wl_proxy *wl_output,
+		                Wl_proxy *wl_output,
 		                uint flags,
 		                int width,
 		                int height,
 		                int refresh) mode = noop;
 
             void function (void *data,
-		                wl_proxy *wl_output) done = noop;
+		                Wl_proxy *wl_output) done = noop;
 
             void function (void *data,
-		                wl_proxy *wl_output,
+		                Wl_proxy *wl_output,
 		                int factor) scale = noop;
 
             void function (void *data,
-		                wl_proxy *wl_output,
+		                Wl_proxy *wl_output,
 		                const(char)* name) name = noop;
 
             void function (void *data,
-			            wl_proxy *wl_output,
+			            Wl_proxy *wl_output,
 			            const(char)* description) description = noop;
         }
-    }
 
-    void output_handle_geometry(void *data, wl_proxy *wl_output,
-		int x, int y, int phy_width, int phy_height,
-		int subpixel, const(char) *make, const(char) *model,
-		int transform) {
-        struct mako_output *output = data;
-        output->subpixel = subpixel;
-    }
+        void handle_geometry(void *data, Wl_proxy* wl_output,
+		            int x, int y, int phy_width, int phy_height,
+		            int subpixel, const(char) *make, const(char)* model,
+		            int transform) 
+        {
+
+            auto self = cast(Screen*) data;
+            self.subpixel = subpixel;
+        }
+
+        void handle_scale(void *data, Wl_proxy* wl_output,
+                        int factor) 
+        {
+            auto self = cast(Screen*) data;
+            self.scale = factor;
+        }
+
+        void handle_name(void *data, Wl_proxy* wl_output,
+            const char *name) 
+        {
+            auto self = cast(Screen*) data;
+            self.name = strdup(name);
+        }
+    } 
 }
 
 extern (C) {
 
-    struct wl_display;
-    // struct wl_registry;
-    // struct wl_compositor;
-    // struct wl_shm;
-    // struct zwlr_layer_shell_v1;
-    // struct xdg_activation_v1;
-
-    struct wl_registry_listener
+    struct Wl_registry_listerner
     {
         void function (void* data,
                        wl_registry* wl_registry,
@@ -241,61 +300,42 @@ extern (C) {
                        uint name) global_remove = handle_global_rem;
     }
     
-    wl_display* wl_display_connect(const(char)* name = null);
-    int wl_display_get_fd(wl_display*);
-    int wl_display_dispatch(wl_display*);
-    int wl_display_dispatch_pending(wl_display*);
-    int wl_display_flush(wl_display*);
-    int wl_display_roundtrip(wl_display*);
+    Wl_display* wl_display_connect(const(char)* name = null);
+    int wl_display_get_fd(Wl_display*);
+    int wl_display_dispatch(Wl_display*);
+    int wl_display_dispatch_pending(Wl_display*);
+    int wl_display_flush(Wl_display*);
+    int wl_display_roundtrip(Wl_display*);
 
     enum uint WL_DISPLAY_SYNC = 0;
     enum uint WL_DISPLAY_GET_REGISTRY = 1;
     enum uint WL_REGISTRY_BIND = 0;
-    
-    struct wl_proxy;
-    alias Callback = extern (C) void function();
 
-    void wl_proxy_destroy(wl_proxy*);
-
-    struct wl_interface;
-    // struct wl_compositor_interface;
-    // struct wl_shm_interface;
-    // struct zwlr_layer_shell_v1_interface;
-    // struct wl_seat_interface;
-    // struct wl_output_interface;
-    // struct xdg_activation_v1_interface;
-    // struct wp_cursor_shape_manager_v1_interface;
-
-    int wl_proxy_add_listener(wl_proxy*, Callback*, void* /*data*/);
-    wl_proxy* wl_proxy_marshal_constructor(wl_proxy*, uint opcode,
-                                           const(wl_interface*) iface, ...);
-
-
-    void handle_global(void* data, wl_proxy* registry,
-		               uint name, const(char)* interface, uint version) 
+    void handle_global(void* data, Wl_proxy* registry,
+		               uint name, const(char)* iface, uint ver) 
     {
 
 	    auto state = cast(Window) data;
 
-        if (strcmp(interface, wl_compositor_interface.name) == 0) {
+        if (strcmp(iface, wl_compositor_interface.name) == 0) {
             state.m_compositor = wl_proxy_marshal_constructor(registry, 
                                                             WL_REGISTRY_BIND, 
                                                             wl_compositor_interface, name, 
                                                             wl_compositor_interface.name, 
                                                             4, null);
-        } else if (strcmp(interface, wl_shm_interface.name) == 0) {
+        } else if (strcmp(iface, wl_shm_interface.name) == 0) {
             state.m_shm = wl_proxy_marshal_constructor(registry, 
                                                             WL_REGISTRY_BIND, 
                                                             wl_shm_interface, name, 
                                                             wl_shm_interface.name, 
                                                             1, null);
-        } else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
+        } else if (strcmp(iface, zwlr_layer_shell_v1_interface.name) == 0) {
             state.layer_shell = wl_proxy_marshal_constructor(registry, 
                                                             WL_REGISTRY_BIND, 
                                                             zwlr_layer_shell_v1_interface, name, 
                                                             zwlr_layer_shell_v1_interface.name, 
                                                             4, null);
-        } else if (strcmp(interface, wl_seat_interface.name) == 0) {
+        } else if (strcmp(iface, wl_seat_interface.name) == 0) {
             // wl_seat* seat = wl_proxy_marshal_constructor(registry, 
             //                                                 WL_REGISTRY_BIND, 
             //                                                 wl_seat_interface, name, 
@@ -303,35 +343,34 @@ extern (C) {
             //                                                 3, null);
             // create_seat(state, seat);
 
-            writeln("add seat name:", interface);
+            writeln("add seat name:", iface);
 
-        } else if (strcmp(interface, wl_output_interface.name) == 0) {
-            state.m_screen = wl_proxy_marshal_constructor(registry, 
-                                                            WL_REGISTRY_BIND, 
-                                                            wl_output_interface, name, 
-                                                            wl_output_interface.name, 
-                                                            4, null);
+        } else if (strcmp(iface, wl_output_interface.name) == 0) {
+            state.add_screen(wl_proxy_marshal_constructor(registry, 
+                                                        WL_REGISTRY_BIND, 
+                                                        wl_output_interface, name, 
+                                                        wl_output_interface.name, 
+                                                        4, null),
+                            name, iface);
 
-            writeln("add output name:", interface);
-
-        } else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
+        } else if (strcmp(iface, xdg_wm_base_interface.name) == 0) {
             state.m_xdg_wm_base = wl_proxy_marshal_constructor(registry, 
                                                             WL_REGISTRY_BIND, 
                                                             xdg_wm_base_interface, name, 
                                                             xdg_wm_base_interface.name, 
                                                             1, null);
-             writeln("add xdg_activation name:", interface);
-        } else if (strcmp(interface, wp_cursor_shape_manager_v1_interface.name) == 0) {
+             writeln("add xdg_activation name:", iface);
+        } else if (strcmp(iface, wp_cursor_shape_manager_v1_interface.name) == 0) {
             // state.cursor_shape_manager = wl_proxy_marshal_constructor(registry, 
             //                                                 WL_REGISTRY_BIND, 
             //                                                 wp_cursor_shape_manager_v1_interface, name, 
             //                                                 wp_cursor_shape_manager_v1_interface.name, 
             //                                                 1, null);
-            writeln("add cursor_shape name:", interface);
+            writeln("add cursor_shape name:", iface);
         }
     }
 
-    void handle_global_rem(void *data, wl_proxy *registry, uint name) 
+    void handle_global_rem(void *data, Wl_proxy *registry, uint name) 
     {
         writeln("handle_global_rem");
     }

@@ -1,11 +1,11 @@
 import wayland;
-import egl;
+import window;
 
 void main()
 {
     try {
         auto wl = new WlState;
-        auto window = new Window!Egl(wl);
+        auto window = new Window(wl);
 
         window.size(200, 400);
         
