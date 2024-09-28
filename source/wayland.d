@@ -19,7 +19,7 @@ class Display
         m_display = enforce(wl_display_connect(), 
                             "failed to create display");
        
-	    m_registry = wl_proxy_marshal_constructor(
+	m_registry = wl_proxy_marshal_constructor(
                 cast(Wl_proxy*) m_display,
                 WL_DISPLAY_GET_REGISTRY, wl_registry_interface, null);
 
