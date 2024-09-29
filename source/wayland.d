@@ -19,14 +19,14 @@ class Display
         m_display = enforce(wl_display_connect(), 
                             "failed to create display");
        
-	m_registry = wl_proxy_marshal_constructor(
+	    m_registry = wl_proxy_marshal_constructor(
                 cast(Wl_proxy*) m_display,
                 WL_DISPLAY_GET_REGISTRY, wl_registry_interface, null);
 
         enforce(wl_proxy_add_listener(m_registry, 
                                     cast(Callback*) &m_registry_listener, 
                                     this) < 0,
-                "wl_display_roundtrip() failed");
+                "add registry listener failed");
 
         // m_cursor.create(24);
 
@@ -40,11 +40,11 @@ class Display
     ~this()
     {
         wl_proxy_destroy(m_layer_shell);
-	wl_proxy_destroy(m_compositor);
-	wl_proxy_destroy(m_shm);
-	wl_proxy_destroy(m_registry);
+	    wl_proxy_destroy(m_compositor);
+	    wl_proxy_destroy(m_shm);
+	    wl_proxy_destroy(m_registry);
         //wl_proxy_destroy(m_xdg_wm_base);
-	wl_display_disconnect(m_display);
+	    wl_display_disconnect(m_display);
     }
 
     void run()
@@ -52,10 +52,10 @@ class Display
         if (wl_display_roundtrip(m_display) < 0) 
 		    throw "wl_display_roundtrip() failed";
 
-	if (m_compositor is null) 
+	    if (m_compositor is null) 
 		    throw "compositor doesn't support wl_compositor";
 		
-	if (m_shm is null)
+	    if (m_shm is null)
 		    throw "compositor doesn't support wl_shm";
 	
         if (m_layer_shell is null) 
@@ -96,9 +96,21 @@ class Display
         }
     }
 
+    /** 
+     * Добавляет окно на экран  
+     * Params:
+     *   surface = окно
+     * Создает поверхность и передат его окну
+     */
     void add(LayerSurface surface)
     {
         surface.prepare(m_display);
+
+        //если экрана нет, создание поверхности откладываем
+        if (m_screen)
+            if (!surface.create(make_surface(), m_layer_shell))
+                throw new Exception("make surface layer shell failed");
+
         m_surfaces ~= surface;
     }
 
@@ -110,20 +122,19 @@ private:
 
     Wl_proxy*   m_registry;
     immutable Wl_registry_listerner m_registry_listener;
+    
 
     Wl_proxy* m_compositor;
     Wl_proxy* m_shm;
     Wl_proxy* m_layer_shell;
     //Wl_proxy* m_xdg_wm_base;
 
-    LayerSurface[] m_surfaces;
-
     Screen m_screen;
 
     void add_screen(Wl_proxy* output, uint id, const(char)* name_str)
     {
         //To do добавление нескольких мониторов
-        if (m_screen.output != null) return;
+        if (m_screen) return;
 
         m_screen.output = output; 
         m_screen.global_name = id; 
@@ -134,12 +145,23 @@ private:
                                 &m_screen) < 0)
             writeln("err!!! output name:", name_str);
         else {
-            foreach (LayerSurface surf; m_surfaces) {
-                
-            }
+            LayerSurface[] valid_surf;
+            foreach (LayerSurface surf; m_screen.surfaces) 
+                if (surf.create(make_surface(), m_layer_shell))
+                    valid_surf ~= surf;
+
+            m_screen.surfaces =  valid_surf;
 
             writeln("add output name:", name_str);
         }
+    }
+
+    Wl_proxy* make_surface()
+    {
+        auto res = wl_proxy_marshal_flags(m_compositor, WL_COMPOSITOR_CREATE_SURFACE,
+                                        &wl_surface_interface, 
+                                        wl_proxy_get_version(m_compositor), 0, null);
+        
     }
 
 	//xdg_activation_v1 *m_xdg_activation;
@@ -179,6 +201,8 @@ private:
 
 struct Screen
 {
+    LayerSurface[] surfaces;
+
     Wl_proxy* output;
     immutable Wl_output_listener output_listener = {
         geometry: handle_geometry,
@@ -218,6 +242,11 @@ struct Screen
     } 
 
     Wl_output_subpixel subpixel;
+
+    opCast!(bool)() const
+    {
+        rturn output == null;
+    }
 
     extern (C) nothrow {
 
@@ -310,6 +339,9 @@ extern (C) {
     enum uint WL_DISPLAY_SYNC = 0;
     enum uint WL_DISPLAY_GET_REGISTRY = 1;
     enum uint WL_REGISTRY_BIND = 0;
+
+    enum uint WL_COMPOSITOR_CREATE_SURFACE = 0;
+    enum uint WL_COMPOSITOR_CREATE_REGION = 1;
 
     void handle_global(void* data, Wl_proxy* registry,
 		               uint name, const(char)* iface, uint ver) 
