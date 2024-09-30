@@ -1,11 +1,5 @@
 module wayland_core;
 
-interface LayerSurface
-{
-    void prepare(Wl_display*);
-    bool create(Wl_proxy* surface, Wl_proxy* layer_shell) nothrow;
-}
-
 extern (C) {
 
     struct Wl_display;

@@ -1,9 +1,9 @@
-module wayland;
+module display;
 
 import core.sys.posix.poll: poll, pollfd, POLLIN, POLLOUT;
 import std.exception;
 
-import wayland_core;
+import wayland.core;
 
 enum EventT
 {
@@ -12,11 +12,11 @@ enum EventT
     count
 }
 
-class Display
+struct DisplayLoop
 {
-    this()
+    this(const(char)* name)
     {
-        m_display = enforce(wl_display_connect(), 
+        m_display = enforce(wl_display_connect(name), 
                             "failed to create display");
        
 	    m_registry = wl_proxy_marshal_constructor(
@@ -27,6 +27,18 @@ class Display
                                     cast(Callback*) &m_registry_listener, 
                                     this) < 0,
                 "add registry listener failed");
+
+        if (wl_display_roundtrip(m_display) < 0) 
+		    throw new Exception("wl_display_roundtrip() failed");
+
+	    if (m_compositor is null) 
+		    throw new Exception("compositor doesn't support wl_compositor");
+		
+	    if (m_shm is null)
+		    throw new Exception("compositor doesn't support wl_shm");
+	
+        if (m_layer_shell is null) 
+            throw new Exception("compositor doesn't support zwlr_layer_shell_v1");
 
         // m_cursor.create(24);
 
@@ -39,28 +51,18 @@ class Display
 
     ~this()
     {
-        wl_proxy_destroy(m_layer_shell);
-	    wl_proxy_destroy(m_compositor);
-	    wl_proxy_destroy(m_shm);
-	    wl_proxy_destroy(m_registry);
+        if (m_display) {
+            if (m_layer_shell) wl_proxy_destroy(m_layer_shell);
+	        if (m_compositor)  wl_proxy_destroy(m_compositor);
+	        if (m_shm) wl_proxy_destroy(m_shm);
+	        if (m_registry) wl_proxy_destroy(m_registry);
         //wl_proxy_destroy(m_xdg_wm_base);
-	    wl_display_disconnect(m_display);
+	        wl_display_disconnect(m_display);
+        }
     }
 
     void run()
     {
-        if (wl_display_roundtrip(m_display) < 0) 
-		    throw "wl_display_roundtrip() failed";
-
-	    if (m_compositor is null) 
-		    throw "compositor doesn't support wl_compositor";
-		
-	    if (m_shm is null)
-		    throw "compositor doesn't support wl_shm";
-	
-        if (m_layer_shell is null) 
-            throw "compositor doesn't support zwlr_layer_shell_v1";
-
         isRuning = true;
 
         while (isRuning) {
@@ -71,10 +73,10 @@ class Display
             do {
                 ret = wl_display_dispatch_pending(m_display);
                 if (wl_display_flush(m_display) < 0) 
-                    throw "failed to flush Wayland events";
+                    throw new Exception("failed to flush Wayland events");
             } while (ret > 0);
             if (ret < 0) 
-                throw "failed to dispatch pending Wayland events";
+                throw new Exception("failed to dispatch pending Wayland events");
             
             if (poll(fds, EventT.count, -1) > 0) {
 
@@ -84,17 +86,19 @@ class Display
                 if (fds[EventT.wayland].revents & POLLIN) {
                     ret = wl_display_dispatch(m_display);
                     if (ret < 0) 
-                        throw "failed to read Wayland events";    
+                        throw new Exception("failed to read Wayland events");    
                 }
                 if (fds[EventT.wayland].revents & POLLOUT) {
                     ret = wl_display_flush(m_display);
                     if (ret < 0) 
-                        throw "failed to flush Wayland events";
+                        throw new Exception("failed to flush Wayland events");
                 }
             }
-            else throw "failed to poll(): ";
+            else throw new Exception("failed to poll(): ");
         }
     }
+
+    import wayland.layer_shell;
 
     /** 
      * Добавляет окно на экран  
@@ -121,8 +125,7 @@ private:
     Wl_display*    m_display;
 
     Wl_proxy*   m_registry;
-    immutable Wl_registry_listerner m_registry_listener;
-    
+    immutable Wl_registry_listerner m_registry_listener;  
 
     Wl_proxy* m_compositor;
     Wl_proxy* m_shm;
@@ -156,11 +159,12 @@ private:
         }
     }
 
-    Wl_proxy* make_surface()
+    WlSurface make_surface()
     {
-        auto res = wl_proxy_marshal_flags(m_compositor, WL_COMPOSITOR_CREATE_SURFACE,
+        auto prim = wl_proxy_marshal_flags(m_compositor, WL_COMPOSITOR_CREATE_SURFACE,
                                         &wl_surface_interface, 
                                         wl_proxy_get_version(m_compositor), 0, null);
+        auto lay = 
         
     }
 

@@ -1,17 +1,19 @@
-import wayland;
+import wayland.display;
 import window;
 
-void main()
+int main()
 {
     try {
-        auto wl = new WlState;
-        auto window = new Window(wl);
-
-        window.size(200, 400);
+        auto loop = DisplayLoop(null);
         
-        app.run();
+        loop.add(new Window(200, 400));
+        
+        loop.run();
     }
     catch(Exception e) {
         writeln(e.msg);
+        return 1;
     }
+
+    return 0;
 }
