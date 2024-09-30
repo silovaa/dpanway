@@ -243,7 +243,7 @@ struct Screen
 
     Wl_output_subpixel subpixel;
 
-    opCast!(bool)() const
+    bool opCast!(bool)() const
     {
         rturn output == null;
     }
