@@ -15,4 +15,7 @@ extern (C) {
                                     const(Wl_interface*) iface,
                                     uint ver, uint flags, ...);
     uint wl_proxy_get_version(Wl_proxy*);
+
+    enum uint WL_COMPOSITOR_CREATE_SURFACE = 0;
+    enum uint WL_COMPOSITOR_CREATE_REGION = 1;
 }

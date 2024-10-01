@@ -106,13 +106,13 @@ struct DisplayLoop
      *   surface = окно
      * Создает поверхность и передат его окну
      */
-    void add(LayerSurface surface)
+    void add(LayerSurface ls)
     {
         surface.prepare(m_display);
 
         //если экрана нет, создание поверхности откладываем
         if (m_screen.isValid)
-            if (!make_surface(surface))
+            if (!ls.make_surface(m_compositor, m_layer_shell, output))
                 throw new Exception("make surface layer shell failed");
 
         m_screen.surfaces ~= surface;
@@ -145,48 +145,21 @@ private:
 
         if (wl_proxy_add_listener(output, 
                                 cast(Callback*) &output_listener, 
-                                &m_screen) < 0)
+                                &m_screen) < 0) {
+            //To do нужно ли уничтожить output???
+            //m_screen.output = null;
             writeln("err!!! output name:", name_str);
+        }
         else {
             LayerSurface[] valid_surf;
             foreach (LayerSurface surf; m_screen.surfaces) 
-                if (make_surface(surf))
+                if (surf.make_surface(m_compositor, m_layer_shell, output))
                     valid_surf ~= surf;
 
             m_screen.surfaces =  valid_surf;
 
             writeln("add output name:", name_str);
         }
-    }
-
-    bool make_surface(LayerSurface layer_win)
-    {
-        layer_win.m_primary_surface = wl_proxy_marshal_flags(m_compositor, WL_COMPOSITOR_CREATE_SURFACE,
-                                                        &wl_surface_interface, 
-                                                        wl_proxy_get_version(m_compositor), 0, null);
-        uint layer_ver = wl_proxy_get_version(m_layer_shell);
-        layer_win.m_surface = wl_proxy_marshal_flags(m_layer_shell, ZWLR_LAYER_SHELL_V1_GET_LAYER_SURFACE, 
-                                    &zwlr_layer_surface_v1_interface, 
-                                    layer_ver, 0, null, 
-                                    layer_win.m_primary_surface, 
-                                    m_screen.output, 
-                                    layer_win.m_layer, "LayerSurface");
-        if (layer_win.m_surface && wl_proxy_add_listener(layer_win.m_surface,
-				                    cast(Callback*) &m_listener, layer_win) < 0)
-            return false;
-
-        wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_SIZE, NULL, 
-                            layer_ver, 0, layer_win.m_width, layer_win.m_height);
-        wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_ANCHOR, NULL, 
-                            layer_ver, 0, layer_win.m_anchor);
-        //To do margin, exlusive zone
-        // wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_MARGIN, NULL, 
-        //                     layer_ver, 0, top, right, bottom, left);
-
-        wl_proxy_marshal_flags(layer_win.m_surface, WL_SURFACE_COMMIT, NULL, 
-                            wl_proxy_get_version(layer_win.m_surface), 0);
-
-        return true;
     }
 
 	//xdg_activation_v1 *m_xdg_activation;
@@ -268,7 +241,7 @@ struct Screen
 
     Wl_output_subpixel subpixel;
 
-    bool isValid() const
+    @property bool isValid() const
     {
         return output != null;
     }
@@ -315,7 +288,7 @@ struct Screen
 
         void handle_geometry(void *data, Wl_proxy* wl_output,
 		            int x, int y, int phy_width, int phy_height,
-		            int subpixel, const(char) *make, const(char)* model,
+		            int subpixel, const(char)* make, const(char)* model,
 		            int transform) 
         {
 
@@ -364,9 +337,6 @@ extern (C) {
     enum uint WL_DISPLAY_SYNC = 0;
     enum uint WL_DISPLAY_GET_REGISTRY = 1;
     enum uint WL_REGISTRY_BIND = 0;
-
-    enum uint WL_COMPOSITOR_CREATE_SURFACE = 0;
-    enum uint WL_COMPOSITOR_CREATE_REGION = 1;
 
     void handle_global(void* data, Wl_proxy* registry,
 		               uint name, const(char)* iface, uint ver) 
