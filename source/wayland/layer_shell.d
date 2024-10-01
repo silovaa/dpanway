@@ -38,31 +38,15 @@ class LayerSurface
 
 private:
     Layer m_layer = Layer.TOP;
-    Anchor m_anchor = ;
+    Anchor m_anchor = Anchor.TOP;
     uint width, height;
     
     //WlSurface m_surface;
-    Wl_proxy* primary_surface;
-    Wl_proxy* layer_surface;
-
-package:
-    bool create(Wl_proxy* surface, Wl_proxy* layer_shell, Wl_proxy* output) final nothrow
-    {
-        primary_surface = surface;
-        layer_surface = wl_proxy_marshal_flags(layer_shell, ZWLR_LAYER_SHELL_V1_GET_LAYER_SURFACE, 
-                                    &zwlr_layer_surface_v1_interface, 
-                                    wl_proxy_get_version(layer_shell), 0, null, surface, output, m_layer, "LayerSurface");
-
-        if (layer_surface && wl_proxy_add_listener(layer_surface,
-				                    cast(Callback*) &m_listener, data) >= 0){
-            
-            
-
-        }
-
-        return false;
-    }
+    Wl_proxy* m_primary_surface;
+    Wl_proxy* m_surface;
 }
+
+enum uint ZWLR_LAYER_SHELL_V1_GET_LAYER_SURFACE = 0;
 
 // package:
 

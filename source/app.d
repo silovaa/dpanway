@@ -6,7 +6,7 @@ int main()
     try {
         auto loop = DisplayLoop(null);
         
-        loop.add(new Window(200, 400));
+        loop.get_screen().add(new Window(200, 400));
         
         loop.run();
     }

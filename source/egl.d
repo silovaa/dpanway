@@ -41,7 +41,7 @@ struct EglState
         }
 
         eglCreatePlatformWindowSurfaceEXT =
-            (void *)eglGetProcAddress("eglCreatePlatformWindowSurfaceEXT");
+            eglGetProcAddress("eglCreatePlatformWindowSurfaceEXT");
         if (eglCreatePlatformWindowSurfaceEXT == NULL) {
             fprintf(stderr, "Failed to get eglCreatePlatformWindowSurfaceEXT\n");
             return false;

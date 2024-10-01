@@ -1,4 +1,4 @@
-module wayland_core;
+module core;
 
 extern (C) {
 

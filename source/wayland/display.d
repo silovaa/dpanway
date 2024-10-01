@@ -111,11 +111,11 @@ struct DisplayLoop
         surface.prepare(m_display);
 
         //если экрана нет, создание поверхности откладываем
-        if (m_screen)
-            if (!surface.create(make_surface(), m_layer_shell))
+        if (m_screen.isValid)
+            if (!make_surface(surface))
                 throw new Exception("make surface layer shell failed");
 
-        m_surfaces ~= surface;
+        m_screen.surfaces ~= surface;
     }
 
 private:
@@ -150,7 +150,7 @@ private:
         else {
             LayerSurface[] valid_surf;
             foreach (LayerSurface surf; m_screen.surfaces) 
-                if (surf.create(make_surface(), m_layer_shell))
+                if (make_surface(surf))
                     valid_surf ~= surf;
 
             m_screen.surfaces =  valid_surf;
@@ -159,13 +159,34 @@ private:
         }
     }
 
-    WlSurface make_surface()
+    bool make_surface(LayerSurface layer_win)
     {
-        auto prim = wl_proxy_marshal_flags(m_compositor, WL_COMPOSITOR_CREATE_SURFACE,
-                                        &wl_surface_interface, 
-                                        wl_proxy_get_version(m_compositor), 0, null);
-        auto lay = 
-        
+        layer_win.m_primary_surface = wl_proxy_marshal_flags(m_compositor, WL_COMPOSITOR_CREATE_SURFACE,
+                                                        &wl_surface_interface, 
+                                                        wl_proxy_get_version(m_compositor), 0, null);
+        uint layer_ver = wl_proxy_get_version(m_layer_shell);
+        layer_win.m_surface = wl_proxy_marshal_flags(m_layer_shell, ZWLR_LAYER_SHELL_V1_GET_LAYER_SURFACE, 
+                                    &zwlr_layer_surface_v1_interface, 
+                                    layer_ver, 0, null, 
+                                    layer_win.m_primary_surface, 
+                                    m_screen.output, 
+                                    layer_win.m_layer, "LayerSurface");
+        if (layer_win.m_surface && wl_proxy_add_listener(layer_win.m_surface,
+				                    cast(Callback*) &m_listener, layer_win) < 0)
+            return false;
+
+        wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_SIZE, NULL, 
+                            layer_ver, 0, layer_win.m_width, layer_win.m_height);
+        wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_ANCHOR, NULL, 
+                            layer_ver, 0, layer_win.m_anchor);
+        //To do margin, exlusive zone
+        // wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_MARGIN, NULL, 
+        //                     layer_ver, 0, top, right, bottom, left);
+
+        wl_proxy_marshal_flags(layer_win.m_surface, WL_SURFACE_COMMIT, NULL, 
+                            wl_proxy_get_version(layer_win.m_surface), 0);
+
+        return true;
     }
 
 	//xdg_activation_v1 *m_xdg_activation;
@@ -247,9 +268,9 @@ struct Screen
 
     Wl_output_subpixel subpixel;
 
-    bool opCast!(bool)() const
+    bool isValid() const
     {
-        rturn output == null;
+        return output != null;
     }
 
     extern (C) nothrow {
