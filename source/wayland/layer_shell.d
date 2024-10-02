@@ -31,7 +31,9 @@ enum Anchor {
 class LayerSurface
 {
     abstract void prepare(Wl_display*);
-    abstract bool configure(uint w, uint h) nothrow;
+    abstract void configure(uint w, uint h) nothrow;
+    abstract void draw() nothrow;
+    abstract void flush() nothrow;
 
     @property size() const;
 
@@ -46,9 +48,15 @@ private:
     //WlSurface m_surface;
     Wl_proxy* m_surface;
     Wl_proxy* m_layer_surface;
+    immutable Layer_surface_listener m_listener = {
+        config_cb, close_cb
+    };
+    Wl_proxy* m_frame;
 
 package:
-	final bool make_surface(Wl_proxy* compositor, Wl_proxy* layer_shell, Wl_proxy* output) nothrow
+	final bool make_surface(Wl_proxy* compositor, 
+                            Wl_proxy* layer_shell, 
+                            Wl_proxy* output) nothrow
 	{
 		m_surface = wl_proxy_marshal_flags(compositor, WL_COMPOSITOR_CREATE_SURFACE,
                                             &wl_surface_interface, 
@@ -75,16 +83,97 @@ package:
         // wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_MARGIN, NULL, 
         //                     ver, 0, top, right, bottom, left);
 
-        wl_proxy_marshal_flags(m_primary_surface, WL_SURFACE_COMMIT, NULL, 
+        wl_proxy_marshal_flags(m_surface, WL_SURFACE_COMMIT, NULL, 
                             wl_proxy_get_version(layer_win.m_surface), 0);
 
         return true;
 	}
+
+    void config_cb(void *data, Wl_proxy* layer_surface,
+			  uint serial, uint width, uint height)
+    {
+        auto self = cast(LayerSurface) data;
+        self.configure(width, height);
+
+        wl_proxy_marshal_flags(layer_surface,
+			 ZWLR_LAYER_SURFACE_V1_ACK_CONFIGURE, NULL, 
+             wl_proxy_get_version(layer_surface), 0, serial);
+
+        self.draw();
+
+        m_frame = wl_proxy_marshal_flags(wl_surface, WL_SURFACE_FRAME, 
+                                        &wl_callback_interface, 
+                                        wl_proxy_get_version(wl_surface), 0, NULL);
+        wl_callback_add_listener(m_frame, &frame_listener, NULL);
+
+        self.flush();
+    }
+
+    void close_cb(void *data, layer_surface*)
+    {
+
+    }
 }
 
 enum uint ZWLR_LAYER_SHELL_V1_GET_LAYER_SURFACE = 0;
+enum uint ZWLR_LAYER_SHELL_V1_DESTROY = 1;
+
+enum uint ZWLR_LAYER_SURFACE_V1_SET_SIZE = 0;
 enum uint ZWLR_LAYER_SURFACE_V1_SET_ANCHOR = 1;
-enum uint ZWLR_LAYER_SURFACE_V1_SET_MARGIN = 2;
+enum uint ZWLR_LAYER_SURFACE_V1_SET_EXCLUSIVE_ZONE = 2;
+enum uint ZWLR_LAYER_SURFACE_V1_SET_MARGIN = 3;
+enum uint ZWLR_LAYER_SURFACE_V1_SET_KEYBOARD_INTERACTIVITY = 4;
+enum uint ZWLR_LAYER_SURFACE_V1_GET_POPUP = 5;
+enum uint ZWLR_LAYER_SURFACE_V1_ACK_CONFIGURE = 6;
+enum uint ZWLR_LAYER_SURFACE_V1_DESTROY = 7;
+enum uint ZWLR_LAYER_SURFACE_V1_SET_LAYER = 8;
+enum uint ZWLR_LAYER_SURFACE_V1_SET_EXCLUSIVE_EDGE = 9;
+
+extern (C) {
+struct Layer_surface_listener {
+	/**
+	 * suggest a surface change
+	 *
+	 * The configure event asks the client to resize its surface.
+	 *
+	 * Clients should arrange their surface for the new states, and
+	 * then send an ack_configure request with the serial sent in this
+	 * configure event at some point before committing the new surface.
+	 *
+	 * The client is free to dismiss all but the last configure event
+	 * it received.
+	 *
+	 * The width and height arguments specify the size of the window in
+	 * surface-local coordinates.
+	 *
+	 * The size is a hint, in the sense that the client is free to
+	 * ignore it if it doesn't resize, pick a smaller size (to satisfy
+	 * aspect ratio or resize in steps of NxM pixels). If the client
+	 * picks a smaller size and is anchored to two opposite anchors
+	 * (e.g. 'top' and 'bottom'), the surface will be centered on this
+	 * axis.
+	 *
+	 * If the width or height arguments are zero, it means the client
+	 * should decide its own window dimension.
+	 */
+	void function (void *data,
+			  layer_surface*,
+			  uint serial,
+			  uint width,
+			  uint height) configure;
+	/**
+	 * surface should be closed
+	 *
+	 * The closed event is sent by the compositor when the surface
+	 * will no longer be shown. The output may have been destroyed or
+	 * the user may have asked for it to be removed. Further changes to
+	 * the surface will be ignored. The client should destroy the
+	 * resource after receiving this event, and create a new surface if
+	 * they so choose.
+	 */
+	void function(void *data, layer_surface*) closed;
+}
+}
 
 
 // package:

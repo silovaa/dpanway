@@ -18,4 +18,16 @@ extern (C) {
 
     enum uint WL_COMPOSITOR_CREATE_SURFACE = 0;
     enum uint WL_COMPOSITOR_CREATE_REGION = 1;
+
+    enum uint  WL_SURFACE_DESTROY = 0;
+    enum uint  WL_SURFACE_ATTACH = 1;
+    enum uint  WL_SURFACE_DAMAGE = 2;
+    enum uint  WL_SURFACE_FRAME = 3;
+    enum uint  WL_SURFACE_SET_OPAQUE_REGION = 4;
+    enum uint  WL_SURFACE_SET_INPUT_REGION = 5;
+    enum uint  WL_SURFACE_COMMIT = 6;
+    enum uint  WL_SURFACE_SET_BUFFER_TRANSFORM = 7;
+    enum uint  WL_SURFACE_SET_BUFFER_SCALE = 8;
+    enum uint  WL_SURFACE_DAMAGE_BUFFER = 9;
+    enum uint  WL_SURFACE_OFFSET = 10;
 }
