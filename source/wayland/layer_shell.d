@@ -33,25 +33,46 @@ class LayerSurface
     abstract void prepare(Wl_display*);
     abstract void configure(uint w, uint h) nothrow;
     abstract void draw() nothrow;
-    abstract void flush() nothrow;
+   // abstract void flush() nothrow;
+	abstract void destroy() nothrow;
 
-    @property size() const;
+    //@property size() const;
 
     import std.typecons;
     @property void anchor(BitFlags!Anchor);
 
+protected:
+	final void queryDraw() 
+	{
+		uint ver = wl_proxy_get_version(m_surface);
+        m_frame = wl_proxy_marshal_flags(m_surface, WL_SURFACE_FRAME, 
+                                        &wl_callback_interface, ver,
+										0, NULL);
+
+		wl_proxy_add_listener(m_frame,
+				     cast(Callback*) &frame_listener, self);
+
+		// wl_proxy_marshal_flags(m_surface, WL_SURFACE_COMMIT, 
+		// 					NULL, ver, 
+		// 					0);
+	}
+
+	Wl_proxy* m_surface;
+	uint m_width, m_height;
+
 private:
     Layer m_layer = Layer.TOP;
     Anchor m_anchor = Anchor.TOP;
-    uint width, height;
     
     //WlSurface m_surface;
-    Wl_proxy* m_surface;
     Wl_proxy* m_layer_surface;
     immutable Layer_surface_listener m_listener = {
         config_cb, close_cb
     };
     Wl_proxy* m_frame;
+	immutable Callback_listener m_frame_listener = {
+		frame_cb
+	}
 
 package:
 	final bool make_surface(Wl_proxy* compositor, 
@@ -74,7 +95,6 @@ package:
             return false;
 
 		uint ver = wl_proxy_get_version(m_layer_surface);
-
         wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_SIZE, NULL, 
                             ver, 0, m_width, m_height);
         wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_ANCHOR, NULL, 
@@ -84,35 +104,10 @@ package:
         //                     ver, 0, top, right, bottom, left);
 
         wl_proxy_marshal_flags(m_surface, WL_SURFACE_COMMIT, NULL, 
-                            wl_proxy_get_version(layer_win.m_surface), 0);
+                            wl_proxy_get_version(m_surface), 0);
 
         return true;
 	}
-
-    void config_cb(void *data, Wl_proxy* layer_surface,
-			  uint serial, uint width, uint height)
-    {
-        auto self = cast(LayerSurface) data;
-        self.configure(width, height);
-
-        wl_proxy_marshal_flags(layer_surface,
-			 ZWLR_LAYER_SURFACE_V1_ACK_CONFIGURE, NULL, 
-             wl_proxy_get_version(layer_surface), 0, serial);
-
-        self.draw();
-
-        m_frame = wl_proxy_marshal_flags(wl_surface, WL_SURFACE_FRAME, 
-                                        &wl_callback_interface, 
-                                        wl_proxy_get_version(wl_surface), 0, NULL);
-        wl_callback_add_listener(m_frame, &frame_listener, NULL);
-
-        self.flush();
-    }
-
-    void close_cb(void *data, layer_surface*)
-    {
-
-    }
 }
 
 enum uint ZWLR_LAYER_SHELL_V1_GET_LAYER_SURFACE = 0;
@@ -156,11 +151,8 @@ struct Layer_surface_listener {
 	 * If the width or height arguments are zero, it means the client
 	 * should decide its own window dimension.
 	 */
-	void function (void *data,
-			  layer_surface*,
-			  uint serial,
-			  uint width,
-			  uint height) configure;
+	void function (void *data, layer_surface*,
+			  uint serial, uint width, uint height) configure;
 	/**
 	 * surface should be closed
 	 *
@@ -173,6 +165,59 @@ struct Layer_surface_listener {
 	 */
 	void function(void *data, layer_surface*) closed;
 }
+
+	void config_cb(void *data, Wl_proxy* layer_surface,
+			  				uint serial, uint width, uint height)
+    {
+        auto self = cast(LayerSurface) data;
+        self.configure(width, height);
+
+        wl_proxy_marshal_flags(self.layer_surface, ZWLR_LAYER_SURFACE_V1_ACK_CONFIGURE, 
+							NULL, wl_proxy_get_version(self.layer_surface), 
+							0, serial);
+
+        //self.draw(); // --???
+
+		self.queryDraw();
+    }
+
+    void close_cb(void *data, layer_surface*)
+    {
+		auto self = cast(LayerSurface) data;
+		self.destroy();
+
+		wl_proxy_marshal_flags(self.m_layer_surface, ZWLR_LAYER_SURFACE_V1_DESTROY, 
+		 					NULL, wl_proxy_get_version(self.m_layer_surface), 
+							WL_MARSHAL_FLAG_DESTROY);
+		if (self.m_frame) {
+			wl_proxy_destroy(self.m_frame);
+
+		}
+
+		uint ver = wl_proxy_get_version(self.m_surface);
+		wl_proxy_marshal_flags(self.m_surface, WL_SURFACE_DESTROY, 
+							NULL, ver, 
+							WL_MARSHAL_FLAG_DESTROY);
+
+		wl_proxy_marshal_flags(self.m_surface, WL_SURFACE_COMMIT, 
+							NULL, ver, 
+							0);
+		self.m_surface = null;
+    }
+
+	void frame_cb(void* data,
+                Wl_proxy* wl_callback, uint callback_data)
+	{
+		wl_proxy_destroy(m_frame);
+
+		auto self = cast(LayerSurface) data;
+		self.draw();
+
+		// wl_proxy_marshal_flags(self.m_surface, WL_SURFACE_COMMIT, 
+		// 					NULL, ver, 
+		// 					0);
+	}
+
 }
 
 
