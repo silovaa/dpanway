@@ -1,9 +1,10 @@
-module display;
+module wayland.display;
 
 import core.sys.posix.poll: poll, pollfd, POLLIN, POLLOUT;
 import std.exception;
 
 import wayland.core;
+import wayland.layer_shell;
 
 enum EventT
 {
@@ -98,8 +99,6 @@ struct DisplayLoop
         }
     }
 
-    import wayland.layer_shell;
-
     /** 
      * Добавляет окно на экран  
      * Params:
@@ -119,7 +118,7 @@ struct DisplayLoop
     }
 
 private:
-    pollfd fds[EventT.count];
+    pollfd[EventT.count] fds;
     bool isRuning = false;
 
     Wl_display*    m_display;
@@ -248,7 +247,7 @@ struct Screen
 
     extern (C) nothrow {
 
-        void noop(){}
+        static void noop(){}
 
         struct Wl_output_listener
         {
@@ -261,32 +260,32 @@ struct Screen
                         int subpixel,
                         const(char)* make,
                         const(char)* model,
-                        int transform) geometry = noop;
+                        int transform) geometry = &noop;
             
             void function (void *data,
 		                Wl_proxy *wl_output,
 		                uint flags,
 		                int width,
 		                int height,
-		                int refresh) mode = noop;
+		                int refresh) mode = &noop;
 
             void function (void *data,
-		                Wl_proxy *wl_output) done = noop;
-
-            void function (void *data,
-		                Wl_proxy *wl_output,
-		                int factor) scale = noop;
+		                Wl_proxy *wl_output) done = &noop;
 
             void function (void *data,
 		                Wl_proxy *wl_output,
-		                const(char)* name) name = noop;
+		                int factor) scale = &noop;
+
+            void function (void *data,
+		                Wl_proxy *wl_output,
+		                const(char)* name) name = &noop;
 
             void function (void *data,
 			            Wl_proxy *wl_output,
-			            const(char)* description) description = noop;
+			            const(char)* description) description = &noop;
         }
 
-        void handle_geometry(void *data, Wl_proxy* wl_output,
+        static void handle_geometry(void *data, Wl_proxy* wl_output,
 		            int x, int y, int phy_width, int phy_height,
 		            int subpixel, const(char)* make, const(char)* model,
 		            int transform) 
@@ -296,14 +295,14 @@ struct Screen
             self.subpixel = subpixel;
         }
 
-        void handle_scale(void *data, Wl_proxy* wl_output,
+        static void handle_scale(void *data, Wl_proxy* wl_output,
                         int factor) 
         {
             auto self = cast(Screen*) data;
             self.scale = factor;
         }
 
-        void handle_name(void *data, Wl_proxy* wl_output,
+        static void handle_name(void *data, Wl_proxy* wl_output,
             const char *name) 
         {
             auto self = cast(Screen*) data;
@@ -312,19 +311,20 @@ struct Screen
     } 
 }
 
+private:
 extern (C) {
 
     struct Wl_registry_listerner
     {
         void function (void* data,
-                       wl_registry* wl_registry,
+                       Wl_proxy* wl_registry,
                        uint name,
                        const(char)* iface,
-                       uint ver) global = handle_global;
+                       uint ver) global = &handle_global;
   
         void function (void *data,
-                       wl_registry *wl_registry,
-                       uint name) global_remove = handle_global_rem;
+                       Wl_proxy *wl_registry,
+                       uint name) global_remove = &handle_global_rem;
     }
     
     Wl_display* wl_display_connect(const(char)* name = null);

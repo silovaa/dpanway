@@ -1,4 +1,4 @@
-module layer_shell;
+module wayland.layer_shell;
 
 import wayland.core;
 
@@ -70,9 +70,9 @@ private:
         config_cb, close_cb
     };
     Wl_proxy* m_frame;
-	immutable Callback_listener m_frame_listener = {
+	immutable Wl_callback_listener m_frame_listener = {
 		frame_cb
-	}
+	};
 
 package:
 	final bool make_surface(Wl_proxy* compositor, 
@@ -151,7 +151,7 @@ struct Layer_surface_listener {
 	 * If the width or height arguments are zero, it means the client
 	 * should decide its own window dimension.
 	 */
-	void function (void *data, layer_surface*,
+	void function (void *data, Wl_proxy*,
 			  uint serial, uint width, uint height) configure;
 	/**
 	 * surface should be closed
@@ -163,7 +163,7 @@ struct Layer_surface_listener {
 	 * resource after receiving this event, and create a new surface if
 	 * they so choose.
 	 */
-	void function(void *data, layer_surface*) closed;
+	void function(void *data, Wl_proxy*) closed;
 }
 
 	void config_cb(void *data, Wl_proxy* layer_surface,
@@ -172,8 +172,8 @@ struct Layer_surface_listener {
         auto self = cast(LayerSurface) data;
         self.configure(width, height);
 
-        wl_proxy_marshal_flags(self.layer_surface, ZWLR_LAYER_SURFACE_V1_ACK_CONFIGURE, 
-							NULL, wl_proxy_get_version(self.layer_surface), 
+        wl_proxy_marshal_flags(layer_surface, ZWLR_LAYER_SURFACE_V1_ACK_CONFIGURE, 
+							NULL, wl_proxy_get_version(layer_surface), 
 							0, serial);
 
         //self.draw(); // --???
@@ -181,13 +181,13 @@ struct Layer_surface_listener {
 		self.queryDraw();
     }
 
-    void close_cb(void *data, layer_surface*)
+    void close_cb(void *data, Wl_proxy* layer_surface)
     {
 		auto self = cast(LayerSurface) data;
 		self.destroy();
 
-		wl_proxy_marshal_flags(self.m_layer_surface, ZWLR_LAYER_SURFACE_V1_DESTROY, 
-		 					NULL, wl_proxy_get_version(self.m_layer_surface), 
+		wl_proxy_marshal_flags(layer_surface, ZWLR_LAYER_SURFACE_V1_DESTROY, 
+		 					NULL, wl_proxy_get_version(layer_surface), 
 							WL_MARSHAL_FLAG_DESTROY);
 		if (self.m_frame) {
 			wl_proxy_destroy(self.m_frame);
@@ -208,7 +208,7 @@ struct Layer_surface_listener {
 	void frame_cb(void* data,
                 Wl_proxy* wl_callback, uint callback_data)
 	{
-		wl_proxy_destroy(m_frame);
+		wl_proxy_destroy(wl_callback);
 
 		auto self = cast(LayerSurface) data;
 		self.draw();
@@ -219,11 +219,3 @@ struct Layer_surface_listener {
 	}
 
 }
-
-
-// package:
-
-//     struct WlSurface {
-//         Wl_proxy* primary;
-//         Wl_proxy* layer;
-//     }

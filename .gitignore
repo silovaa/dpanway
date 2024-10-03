@@ -1,0 +1,25 @@
+.idea
+# Build files
+build.ninja
+/build
+/.dub
+dub.selections.json
+build-aux/main.d
+
+# Temporary Glade Files
+*.ui~
+*.ui#
+
+/data/conf
+/data/structure
+
+# Debug files
+*.log
+*.out
+*.gresource
+*.lst
+
+# Unittesting local files
+/.extrapanel-temp-config
+
+dub.selections.json

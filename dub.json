@@ -11,5 +11,5 @@
 		"protocol/wlr_layer_shell_protocol.c"
 	],
 
-	"libs": ["wayland-client"]
+	"libs": ["wayland-client", "wayland-egl", "EGL", "OpenGL"]
 }
