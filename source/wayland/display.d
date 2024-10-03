@@ -202,9 +202,9 @@ struct Screen
 
     Wl_proxy* output;
     immutable Wl_output_listener output_listener = {
-        geometry: handle_geometry,
-        scale:    handle_scale,
-        name:     handle_name
+        geometry: &handle_geometry,
+        scale:    &handle_scale,
+        name:     &handle_name
     };
 
     uint global_name;

@@ -67,11 +67,11 @@ private:
     //WlSurface m_surface;
     Wl_proxy* m_layer_surface;
     immutable Layer_surface_listener m_listener = {
-        config_cb, close_cb
+        &config_cb, &close_cb
     };
     Wl_proxy* m_frame;
 	immutable Wl_callback_listener m_frame_listener = {
-		frame_cb
+		&frame_cb
 	};
 
 package:

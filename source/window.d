@@ -3,7 +3,7 @@ module window;
 import wayland.core;
 import wayland.layer_shell;
 import egl;
-import opengl; // заменить на drelict
+import opengl.gl3; 
 
 class Window: LayerSurface
 {

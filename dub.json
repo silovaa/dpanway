@@ -11,5 +11,8 @@
 		"protocol/wlr_layer_shell_protocol.c"
 	],
 
-	"libs": ["wayland-client", "wayland-egl", "EGL", "OpenGL"]
+	"libs": ["wayland-client", "wayland-egl", "EGL"],
+
+	"dependency": {"opengl": "~>1.0.1"}
+	
 }
