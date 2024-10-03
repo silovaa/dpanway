@@ -41,7 +41,7 @@ struct DisplayLoop
         if (m_layer_shell is null) 
             throw new Exception("compositor doesn't support zwlr_layer_shell_v1");
 
-        // m_cursor.create(24);
+        // m_cursor.create(22);
 
         fds[EventT.system].fd = sfd;
 		fds[EventT.system].events = POLLIN;

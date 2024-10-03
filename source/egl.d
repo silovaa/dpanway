@@ -1,11 +1,11 @@
 module egl;
 
-import wayland.core;
-
-struct EglState
+struct EglWaylandClient
 {
-    void create(Wl_display* display)
+    void create(void* display)
     {
+        if (m_egl_display) return;
+
         import core.stdc.string: strstr;
 
         auto client_exts_str =
@@ -32,15 +32,6 @@ struct EglState
                         enforce(eglGetProcAddress("eglCreatePlatformWindowSurfaceEXT"),
                             "Failed to get eglCreatePlatformWindowSurfaceEXT\n");
 
-        // scope(failure) {
-        //     eglMakeCurrent(EGL_NO_DISPLAY, EGL_NO_SURFACE,
-        //                 EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        //     if (m_egl_display) {
-        //         eglTerminate(m_egl_display);
-        //     }
-        //     eglReleaseThread();
-        // }
-        
         m_egl_display = enforce(
             getDisplayFunc(EGL_PLATFORM_WAYLAND_EXT, display, null) != EGL_NO_DISPLAY,
             "Failed to create EGL display\n");
@@ -49,7 +40,7 @@ struct EglState
                 "Failed to initialize EGL");
  
         EGLint matched = 0;
-        enforce(eglChooseConfig(m_egl_display, m_config_attribs,
+        enforce(eglChooseConfig(m_egl_display, m_config_attribs.ptr,
                                 &m_egl_config, 1, &matched), 
                 "eglChooseConfig failed");
      
@@ -58,50 +49,61 @@ struct EglState
 
         m_egl_context =
             enforce(eglCreateContext(m_egl_display, m_egl_config,
-                                    EGL_NO_CONTEXT, m_context_attribs) != EGL_NO_CONTEXT,
+                                    EGL_NO_CONTEXT, m_context_attribs.ptr) != EGL_NO_CONTEXT,
                     "Failed to create EGL context\n");
     }
 
-    void* createSurface(void* egl_window)
+    void createSurface(void* egl_window) nothrow
     {
-        auto res = createWindowSurfaceFunc(
+        assert(m_egl_surface == EGL_NO_SURFACE);//--???
+
+        m_egl_surface = createWindowSurfaceFunc(
 		                m_egl_display, m_egl_config, egl_window, null);
 
-	    assert(res != EGL_NO_SURFACE);//--???
-
-        return res;
+	    assert(m_egl_surface != EGL_NO_SURFACE);//--???
     }
 
-    void destroySurface(void* surface)
+    void destroySurface() nothrow
     {
-        eglDestroySurface(m_egl_display, surface);
+        eglDestroySurface(m_egl_display, m_egl_surface);
+        m_egl_surface = EGL_NO_SURFACE;
     }
 
-    void makeCurrent(void* surface)
+    void makeCurrent() nothrow
     {
-        eglMakeCurrent(m_egl_display, surface, surface, m_egl_context);
+        eglMakeCurrent(m_egl_display, m_egl_surface, m_egl_surface, m_egl_context);
     }
 
-    void swapBuffers(void* surface)
+    void swapBuffers() nothrow
     {
-        eglSwapBuffers(m_egl_display, surface);
+        eglSwapBuffers(m_egl_display, m_egl_surface);
     }
 
     ~this()
     {
-        eglMakeCurrent(egl_display, EGL_NO_SURFACE,
-		            EGL_NO_SURFACE, EGL_NO_CONTEXT);
-	    eglDestroyContext(egl_display, egl_context);
-	    eglTerminate(egl_display);
+        if (m_egl_display) {
+            eglMakeCurrent(m_egl_display, EGL_NO_SURFACE,
+		                   EGL_NO_SURFACE, EGL_NO_CONTEXT);
+            if (m_egl_surface)
+                eglDestroySurface(m_egl_display, m_egl_surface);
+            if (m_egl_context)
+	            eglDestroyContext(m_egl_display, m_egl_context);
+	        eglTerminate(egl_display); 
+        }
+        else 
+            eglMakeCurrent(EGL_NO_DISPLAY, EGL_NO_SURFACE,
+                           EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        
 	    eglReleaseThread();
     }
 
 private:
-    void* m_egl_display;
-    void* m_egl_config;
-    void* m_egl_context;
+    EGLDisplay m_egl_display;
+    EGLConfig  m_egl_config;
+    EGLContext m_egl_context;
+    EGLSurface m_egl_surface;
 
-    const(EGLint[]) m_config_attribs = {
+    const(EGLint[]) m_config_attribs = [
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
         EGL_RED_SIZE, 1,
         EGL_GREEN_SIZE, 1,
@@ -109,12 +111,12 @@ private:
         EGL_ALPHA_SIZE, 1,
         EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
         EGL_NONE
-    };
+    ];
 
-    const EGLint[] m_context_attribs = {
+    const(EGLint[]) m_context_attribs = [
         EGL_CONTEXT_CLIENT_VERSION, 2,
         EGL_NONE
-    };
+    ];
 
     PFNEGLCREATEPLATFORMWINDOWSURFACEEXTPROC createWindowSurfaceFunc;
 }
@@ -141,7 +143,6 @@ enum uint EGL_PLATFORM_WAYLAND_EXT = 0x31D8;
 enum uint EGL_OPENGL_ES2_BIT         = 0x0004;
 enum uint EGL_CONTEXT_CLIENT_VERSION = 0x3098;
 
-
 alias EGLenum = uint;
 alias EGLint = uint;
 alias EGLBoolean = uint;
@@ -155,9 +156,14 @@ extern(C) {
     alias AnyFanc = void function();
 
     alias PFNEGLGETPLATFORMDISPLAYEXTPROC = 
-        void* function (EGLenum platform, void* native_display, const EGLint[] attrib_list);
+        void* function (EGLenum platform, 
+                        void* native_display, 
+                        const(EGLint*) attrib_list);
     alias PFNEGLCREATEPLATFORMWINDOWSURFACEEXTPROC = 
-        void* function (EGLDisplay dpy, EGLConfig config, void *native_window, const EGLint[] attrib_list);
+        void* function (EGLDisplay dpy,
+                        EGLConfig config, 
+                        void* native_window, 
+                        const(EGLint*) attrib_list);
 
     AnyFanc eglGetProcAddress(const(char*));
     const(char*) eglQueryString(EGLDisplay dpy, EGLint name);
@@ -166,11 +172,11 @@ extern(C) {
     EGLBoolean eglTerminate(EGLDisplay dpy);
     EGLBoolean eglReleaseThread();
     EGLBoolean eglInitialize(EGLDisplay dpy, EGLint *major, EGLint *minor);
-    EGLBoolean eglChooseConfig(EGLDisplay dpy, const(EGLint[]) attrib_list, 
+    EGLBoolean eglChooseConfig(EGLDisplay dpy, const(EGLint*) attrib_list, 
                             EGLConfig* configs, EGLint config_size, 
                             EGLint* num_config);
     EGLContext eglCreateContext(EGLDisplay dpy, EGLConfig config, 
-                                EGLContext share_context, const(EGLint[]) attrib_list);
+                                EGLContext share_context, const(EGLint*) attrib_list);
     EGLBoolean eglDestroySurface(EGLDisplay dpy, EGLSurface surface);
     EGLBoolean eglSwapBuffers (EGLDisplay dpy, EGLSurface surface);
 }
