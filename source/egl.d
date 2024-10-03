@@ -34,7 +34,7 @@ struct EglWaylandClient
 
         m_egl_display = enforce(
             getDisplayFunc(EGL_PLATFORM_WAYLAND_EXT, display, null) != EGL_NO_DISPLAY,
-            "Failed to create EGL display\n");
+            "Failed to create EGL display");
 
         enforce(eglInitialize(m_egl_display, null, null) != EGL_FALSE,
                 "Failed to initialize EGL");
