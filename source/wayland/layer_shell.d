@@ -47,13 +47,13 @@ protected:
 		uint ver = wl_proxy_get_version(m_surface);
         m_frame = wl_proxy_marshal_flags(m_surface, WL_SURFACE_FRAME, 
                                         &wl_callback_interface, ver,
-										0, NULL);
+										0, null);
 
 		wl_proxy_add_listener(m_frame,
-				     cast(Callback*) &frame_listener, self);
+				     cast(Callback*) &m_frame_listener, cast(void*)this);
 
 		// wl_proxy_marshal_flags(m_surface, WL_SURFACE_COMMIT, 
-		// 					NULL, ver, 
+		// 					null, ver, 
 		// 					0);
 	}
 
@@ -79,6 +79,8 @@ package:
                             Wl_proxy* layer_shell, 
                             Wl_proxy* output) nothrow
 	{
+		import wlr_layer_shell_protocol;
+
 		m_surface = wl_proxy_marshal_flags(compositor, WL_COMPOSITOR_CREATE_SURFACE,
                                             &wl_surface_interface, 
                                             wl_proxy_get_version(compositor), 0, null);
@@ -86,24 +88,24 @@ package:
         m_layer_surface = wl_proxy_marshal_flags(layer_shell, ZWLR_LAYER_SHELL_V1_GET_LAYER_SURFACE, 
                                     &zwlr_layer_surface_v1_interface, 
                                     wl_proxy_get_version(layer_shell), 0, null, 
-                                    m_primary_surface, 
+                                    m_surface, 
                                     output, 
                                     m_layer, "LayerSurface");
         if (!m_layer_surface || 
 			wl_proxy_add_listener(m_layer_surface,
-				                cast(Callback*) &m_listener, this) < 0)
+				                cast(Callback*) &m_listener, cast(void*) this) < 0)
             return false;
 
 		uint ver = wl_proxy_get_version(m_layer_surface);
-        wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_SIZE, NULL, 
+        wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_SIZE, null, 
                             ver, 0, m_width, m_height);
-        wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_ANCHOR, NULL, 
+        wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_ANCHOR, null, 
                             ver, 0, m_anchor);
         //To do margin, exlusive zone
-        // wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_MARGIN, NULL, 
+        // wl_proxy_marshal_flags(m_layer_surface, ZWLR_LAYER_SURFACE_V1_SET_MARGIN, null, 
         //                     ver, 0, top, right, bottom, left);
 
-        wl_proxy_marshal_flags(m_surface, WL_SURFACE_COMMIT, NULL, 
+        wl_proxy_marshal_flags(m_surface, WL_SURFACE_COMMIT, null, 
                             wl_proxy_get_version(m_surface), 0);
 
         return true;
@@ -173,7 +175,7 @@ struct Layer_surface_listener {
         self.configure(width, height);
 
         wl_proxy_marshal_flags(layer_surface, ZWLR_LAYER_SURFACE_V1_ACK_CONFIGURE, 
-							NULL, wl_proxy_get_version(layer_surface), 
+							null, wl_proxy_get_version(layer_surface), 
 							0, serial);
 
         //self.draw(); // --???
@@ -187,7 +189,7 @@ struct Layer_surface_listener {
 		self.destroy();
 
 		wl_proxy_marshal_flags(layer_surface, ZWLR_LAYER_SURFACE_V1_DESTROY, 
-		 					NULL, wl_proxy_get_version(layer_surface), 
+		 					null, wl_proxy_get_version(layer_surface), 
 							WL_MARSHAL_FLAG_DESTROY);
 		if (self.m_frame) {
 			wl_proxy_destroy(self.m_frame);
@@ -196,11 +198,11 @@ struct Layer_surface_listener {
 
 		uint ver = wl_proxy_get_version(self.m_surface);
 		wl_proxy_marshal_flags(self.m_surface, WL_SURFACE_DESTROY, 
-							NULL, ver, 
+							null, ver, 
 							WL_MARSHAL_FLAG_DESTROY);
 
 		wl_proxy_marshal_flags(self.m_surface, WL_SURFACE_COMMIT, 
-							NULL, ver, 
+							null, ver, 
 							0);
 		self.m_surface = null;
     }
@@ -214,7 +216,7 @@ struct Layer_surface_listener {
 		self.draw();
 
 		// wl_proxy_marshal_flags(self.m_surface, WL_SURFACE_COMMIT, 
-		// 					NULL, ver, 
+		// 					null, ver, 
 		// 					0);
 	}
 

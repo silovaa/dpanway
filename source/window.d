@@ -7,6 +7,12 @@ import opengl.gl3;
 
 class Window: LayerSurface
 {
+    this (uint wigth, uint height)
+    {
+        m_width = wigth;
+        m_height = height;
+    }
+
     override void prepare(Wl_display* display)
     {
         return m_egl.create(display);
@@ -37,7 +43,7 @@ class Window: LayerSurface
   
 	override void destroy() nothrow
     {
-        m_egl.destroySurface(m_egl_surface);
+        m_egl.destroySurface();
 	    wl_egl_window_destroy(m_egl_window);
 
         m_egl_window = null;
@@ -54,7 +60,7 @@ private:
     Wl_egl_window* m_egl_window;
 }
 
-extern (C) {
+extern(C) nothrow {
 
     struct Wl_egl_window 
     {

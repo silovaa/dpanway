@@ -1,12 +1,14 @@
 import wayland.display;
 import window;
 
+import std.stdio;
+
 int main()
 {
     try {
         auto loop = DisplayLoop(null);
         
-        loop.get_screen().add(new Window(200, 400));
+        loop.add(new Window(200, 400));
         
         loop.run();
     }

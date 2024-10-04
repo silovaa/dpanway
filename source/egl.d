@@ -1,5 +1,7 @@
 module egl;
 
+import std.exception;
+
 struct EglWaylandClient
 {
     void create(void* display)
@@ -24,17 +26,17 @@ struct EglWaylandClient
         if (!strstr(client_exts_str, "EGL_EXT_platform_wayland")) 
             throw new Exception("EGL_EXT_platform_wayland not supported");
 
-        PFNEGLGETPLATFORMDISPLAYEXTPROC getDisplayFunc =
-                        enforce(eglGetProcAddress("eglGetPlatformDisplayEXT"),
-                            "Failed to get eglGetPlatformDisplayEXT\n");
+        auto getDisplayFunc = cast(PFNEGLGETPLATFORMDISPLAYEXTPROC)
+                                eglGetProcAddress("eglGetPlatformDisplayEXT");
+        if (!getDisplayFunc) throw new Exception("Failed to get eglGetPlatformDisplayEXT");
 
-        createWindowSurfaceFunc = 
+        createWindowSurfaceFunc = cast(PFNEGLCREATEPLATFORMWINDOWSURFACEEXTPROC)
                         enforce(eglGetProcAddress("eglCreatePlatformWindowSurfaceEXT"),
-                            "Failed to get eglCreatePlatformWindowSurfaceEXT\n");
+                            "Failed to get eglCreatePlatformWindowSurfaceEXT");
 
-        m_egl_display = enforce(
-            getDisplayFunc(EGL_PLATFORM_WAYLAND_EXT, display, null) != EGL_NO_DISPLAY,
-            "Failed to create EGL display");
+        m_egl_display = getDisplayFunc(EGL_PLATFORM_WAYLAND_EXT, display, null);
+        if (m_egl_display == EGL_NO_DISPLAY)
+            throw new Exception("Failed to create EGL display");
 
         enforce(eglInitialize(m_egl_display, null, null) != EGL_FALSE,
                 "Failed to initialize EGL");
@@ -47,10 +49,10 @@ struct EglWaylandClient
         enforce(matched, 
                 "Failed to match an EGL config");
 
-        m_egl_context =
-            enforce(eglCreateContext(m_egl_display, m_egl_config,
-                                    EGL_NO_CONTEXT, m_context_attribs.ptr) != EGL_NO_CONTEXT,
-                    "Failed to create EGL context\n");
+        m_egl_context = eglCreateContext(m_egl_display, m_egl_config,
+                                    EGL_NO_CONTEXT, m_context_attribs.ptr);
+        if (m_egl_context == EGL_NO_CONTEXT) 
+            throw new Exception("Failed to create EGL context");
     }
 
     void createSurface(void* egl_window) nothrow
@@ -88,7 +90,7 @@ struct EglWaylandClient
                 eglDestroySurface(m_egl_display, m_egl_surface);
             if (m_egl_context)
 	            eglDestroyContext(m_egl_display, m_egl_context);
-	        eglTerminate(egl_display); 
+	        eglTerminate(m_egl_display); 
         }
         else 
             eglMakeCurrent(EGL_NO_DISPLAY, EGL_NO_SURFACE,
@@ -151,7 +153,7 @@ alias EGLConfig  = void*;
 alias EGLContext = void*;
 alias EGLSurface = void*;
 
-extern(C) {
+extern(C) nothrow {
 
     alias AnyFanc = void function();
 
@@ -165,7 +167,7 @@ extern(C) {
                         void* native_window, 
                         const(EGLint*) attrib_list);
 
-    AnyFanc eglGetProcAddress(const(char*));
+    void* eglGetProcAddress(const(char*));
     const(char*) eglQueryString(EGLDisplay dpy, EGLint name);
     EGLint eglGetError();
     EGLBoolean eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx);
@@ -179,4 +181,5 @@ extern(C) {
                                 EGLContext share_context, const(EGLint*) attrib_list);
     EGLBoolean eglDestroySurface(EGLDisplay dpy, EGLSurface surface);
     EGLBoolean eglSwapBuffers (EGLDisplay dpy, EGLSurface surface);
+    EGLBoolean eglDestroyContext (EGLDisplay dpy, EGLContext ctx);
 }

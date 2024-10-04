@@ -13,6 +13,6 @@
 
 	"libs": ["wayland-client", "wayland-egl", "EGL"],
 
-	"dependency": {"opengl": "~>1.0.1"}
+	"dependencies": {"opengl:gl3": "~>1.0.1"}
 	
 }
