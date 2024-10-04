@@ -12,10 +12,10 @@ extern (C) {
         /** Message signature */
         const char *signature;
         /** Object argument interfaces */
-        const wl_interface **types;
+        const Wl_interface **types;
     }
 
-    struct wl_interface{
+    struct Wl_interface{
         /** Interface name */
         const char *name;
         /** Interface version */
@@ -33,9 +33,9 @@ extern (C) {
     void wl_proxy_destroy(Wl_proxy*);
     int wl_proxy_add_listener(Wl_proxy*, Callback*, void* /*data*/);
     Wl_proxy* wl_proxy_marshal_constructor(Wl_proxy*, uint opcode,
-                                           const wl_interface* iface, ...);
+                                           const Wl_interface* iface, ...);
     Wl_proxy* wl_proxy_marshal_flags(Wl_proxy*, uint opcode,
-                                    const wl_interface* iface,
+                                    const Wl_interface* iface,
                                     uint ver, uint flags, ...);
     uint wl_proxy_get_version(Wl_proxy*);
 
@@ -56,8 +56,8 @@ extern (C) {
     enum uint  WL_SURFACE_DAMAGE_BUFFER = 9;
     enum uint  WL_SURFACE_OFFSET = 10;
 
-    extern const wl_interface wl_callback_interface;
-    extern const wl_interface wl_surface_interface;
+    extern const Wl_interface wl_callback_interface;
+    extern const Wl_interface wl_surface_interface;
 
     struct Wl_callback_listener {
         /**

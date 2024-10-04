@@ -79,7 +79,7 @@ package:
                             Wl_proxy* layer_shell, 
                             Wl_proxy* output) nothrow
 	{
-		import wlr_layer_shell_protocol;
+		//import wlr_layer_shell_protocol;
 
 		m_surface = wl_proxy_marshal_flags(compositor, WL_COMPOSITOR_CREATE_SURFACE,
                                             &wl_surface_interface, 
@@ -110,6 +110,12 @@ package:
 
         return true;
 	}
+
+	static const(Wl_interface) wl_iface = {
+		"zwlr_layer_shell_v1", 5,
+		2, zwlr_layer_shell_v1_requests.ptr,
+		0, null
+	};
 }
 
 enum uint ZWLR_LAYER_SHELL_V1_GET_LAYER_SURFACE = 0;
@@ -218,6 +224,48 @@ struct Layer_surface_listener {
 		// wl_proxy_marshal_flags(self.m_surface, WL_SURFACE_COMMIT, 
 		// 					null, ver, 
 		// 					0);
+	}
+
+	const(Wl_interface*)[] wlr_layer_shell_unstable_v1_types = [
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		&zwlr_layer_surface_v1_interface,
+		&wl_surface_interface,
+		&wl_output_interface,
+		NULL,
+		NULL,
+		&xdg_popup_interface,
+	];
+
+	const(Wl_message)[] zwlr_layer_shell_v1_requests = [
+		{ "get_layer_surface", "no?ous", wlr_layer_shell_unstable_v1_types.ptr + 4 },
+		{ "destroy", "3", wlr_layer_shell_unstable_v1_types.ptr },
+	];
+
+	const(Wl_message)[] zwlr_layer_surface_v1_requests = [
+		{ "set_size", "uu", wlr_layer_shell_unstable_v1_types.ptr },
+		{ "set_anchor", "u", wlr_layer_shell_unstable_v1_types.ptr },
+		{ "set_exclusive_zone", "i", wlr_layer_shell_unstable_v1_types.ptr },
+		{ "set_margin", "iiii", wlr_layer_shell_unstable_v1_types.ptr},
+		{ "set_keyboard_interactivity", "u", wlr_layer_shell_unstable_v1_types.ptr},
+		{ "get_popup", "o", wlr_layer_shell_unstable_v1_types.ptr + 9 },
+		{ "ack_configure", "u", wlr_layer_shell_unstable_v1_types.ptr },
+		{ "destroy", "", wlr_layer_shell_unstable_v1_types.ptr },
+		{ "set_layer", "2u", wlr_layer_shell_unstable_v1_types.ptr },
+		{ "set_exclusive_edge", "5u", wlr_layer_shell_unstable_v1_types.ptr }
+	];
+
+	const(Wl_message)[] zwlr_layer_surface_v1_events = [
+		{ "configure", "uuu", wlr_layer_shell_unstable_v1_types.ptr },
+		{ "closed", "", wlr_layer_shell_unstable_v1_types.ptr },
+	];
+
+	const Wl_interface zwlr_layer_surface_v1_interface = {
+		"zwlr_layer_surface_v1", 5,
+		10, zwlr_layer_surface_v1_requests,
+		2, zwlr_layer_surface_v1_events,
 	}
 
 }

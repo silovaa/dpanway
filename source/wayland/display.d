@@ -367,11 +367,11 @@ extern (C) {
                                                             &wl_shm_interface, name, 
                                                             wl_shm_interface.name, 
                                                             1, null);
-        } else if (strcmp(iface, zwlr_layer_shell_v1_interface.name) == 0) {
+        } else if (strcmp(iface, LayerSurface.wl_iface.name) == 0) {
             state.m_layer_shell = wl_proxy_marshal_constructor(registry, 
                                                             WL_REGISTRY_BIND, 
-                                                            &zwlr_layer_shell_v1_interface, name, 
-                                                            zwlr_layer_shell_v1_interface.name, 
+                                                            &LayerSurface.wl_iface, name, 
+                                                            LayerSurface.wl_iface.name, 
                                                             4, null);
         } else if (strcmp(iface, wl_seat_interface.name) == 0) {
             // wl_seat* seat = wl_proxy_marshal_constructor(registry, 

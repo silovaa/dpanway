@@ -155,8 +155,6 @@ alias EGLSurface = void*;
 
 extern(C) nothrow {
 
-    alias AnyFanc = void function();
-
     alias PFNEGLGETPLATFORMDISPLAYEXTPROC = 
         void* function (EGLenum platform, 
                         void* native_display, 
