@@ -27,72 +27,71 @@ struct LayerShellProtocol
     //}
 
     //Wl_proxy* makeSurface(Wl_proxy* )
+
 	static auto ref get_inst()
     {
-		const(Wl_interface*)[] wlr_types = [
+        static LayerShellProtocol self();
+        static Helper helper(self);
+
+        return self;
+    }
+
+private:
+    const(Wl_interface*)[] wlr_types = [
 		null,
 		null,
 		null,
 		null,
-		&zwlr_layer_surface_v1_interface,
+        null, //&zwlr_layer_surface_v1_interface,
 		&wl_surface_interface,
 		&wl_output_interface,
 		null,
 		null,
 		&xdg_popup_interface
-		];
+	];
 
-        static LayerShellProtocol self(wlr_types);
-        return self;
+	const(Wl_message)[] zwlr_layer_shell_v1_requests = [
+        {"get_layer_surface", "no?ous", wlr_layer_shell_unstable_v1_types.ptr + 4},
+		{"destroy", "3", wlr_layer_shell_unstable_v1_types.ptr}
+    ]
+
+	const(Wl_message)[] zwlr_layer_surface_v1_requests = [
+        {"set_size", "uu", wlr_layer_shell_unstable_v1_types.ptr},
+		{"set_anchor", "u", wlr_layer_shell_unstable_v1_types.ptr},
+		{"set_exclusive_zone", "i", wlr_layer_shell_unstable_v1_types.ptr},
+		{"set_margin", "iiii", wlr_layer_shell_unstable_v1_types.ptr},
+		{"set_keyboard_interactivity", "u", wlr_layer_shell_unstable_v1_types.ptr},
+		{"get_popup", "o", wlr_layer_shell_unstable_v1_types.ptr + 9},
+		{"ack_configure", "u", wlr_layer_shell_unstable_v1_types.ptr},
+		{"destroy", "", wlr_layer_shell_unstable_v1_types.ptr},
+		{"set_layer", "2u", wlr_layer_shell_unstable_v1_types.ptr},
+		{"set_exclusive_edge", "5u", wlr_layer_shell_unstable_v1_types.ptr}
+    ]
+
+	const(Wl_message)[] zwlr_layer_surface_v1_events = [
+        {"configure", "uuu", wlr_layer_shell_unstable_v1_types.ptr},
+		{"closed", "", wlr_layer_shell_unstable_v1_types.ptr}
+    ]
+
+	const(Wl_interface) zwlr_layer_surface_v1_interface = {
+        "zwlr_layer_surface_v1", 5,
+		10, zwlr_layer_surface_v1_requests.ptr,
+		2, zwlr_layer_surface_v1_events.ptr
+    };
+
+    const(Wl_interface) wl_iface = {
+        "zwlr_layer_shell_v1", 5,
+		2, zwlr_layer_shell_v1_requests.ptr,
+		0, null
     }
 
-
-private:
-    this(const(Wl_interface*)[] wlr_layer_shell_unstable_v1_types)
-	{
-		zwlr_layer_shell_v1_requests = [
-		Wl_message( "get_layer_surface", "no?ous", wlr_layer_shell_unstable_v1_types.ptr + 4),
-		Wl_message( "destroy", "3", wlr_layer_shell_unstable_v1_types.ptr)
-		];
-
-		zwlr_layer_surface_v1_requests = [
-		Wl_message( "set_size", "uu", wlr_layer_shell_unstable_v1_types.ptr),
-		Wl_message( "set_anchor", "u", wlr_layer_shell_unstable_v1_types.ptr),
-		Wl_message( "set_exclusive_zone", "i", wlr_layer_shell_unstable_v1_types.ptr),
-		Wl_message( "set_margin", "iiii", wlr_layer_shell_unstable_v1_types.ptr},
-		{ "set_keyboard_interactivity", "u", wlr_layer_shell_unstable_v1_types.ptr},
-		{ "get_popup", "o", wlr_layer_shell_unstable_v1_types.ptr + 9 },
-		{ "ack_configure", "u", wlr_layer_shell_unstable_v1_types.ptr },
-		{ "destroy", "", wlr_layer_shell_unstable_v1_types.ptr },
-		{ "set_layer", "2u", wlr_layer_shell_unstable_v1_types.ptr },
-		{ "set_exclusive_edge", "5u", wlr_layer_shell_unstable_v1_types.ptr }
-		];
-		zwlr_layer_surface_v1_events = [
-		{ "configure", "uuu", wlr_layer_shell_unstable_v1_types.ptr },
-		{ "closed", "", wlr_layer_shell_unstable_v1_types.ptr },
-		];
-		zwlr_layer_surface_v1_interface = {
-		"zwlr_layer_surface_v1", 5,
-		10, zwlr_layer_surface_v1_requests.ptr,
-		2, zwlr_layer_surface_v1_events.ptr,
-		};
-		wl_iface = {
-		"zwlr_layer_shell_v1", 5,
-		2, zwlr_layer_shell_v1_requests.ptr,
-		0, null,
-		};
-
-	}
-
-	const(Wl_message)[2] zwlr_layer_shell_v1_requests;
-
-	const(Wl_message)[10] zwlr_layer_surface_v1_requests;
-
-	const(Wl_message)[2] zwlr_layer_surface_v1_events;
-
-	const(Wl_interface) zwlr_layer_surface_v1_interface;
-
-    const(Wl_interface) wl_iface;
+    struct Helper
+    {
+        this(ref LayerShellProtocol inst)
+        {
+            inst.wlr_types[4] = &inst.zwlr_layer_surface_v1_interface;
+        }
+    }
 }
 
 //---------------------------------------------------------------
