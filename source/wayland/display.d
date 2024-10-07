@@ -316,11 +316,9 @@ struct Screen
 private:
 extern (C) {
 
-    extern const wl_interface wl_registry_interface;
-    extern const wl_interface wl_compositor_interface;
-    extern const wl_interface wl_shm_interface;
-    extern const wl_interface wl_seat_interface;
-    extern const wl_interface wl_output_interface;
+    extern const Wl_interface wl_registry_interface;
+    extern const Wl_interface wl_compositor_interface;
+    extern const Wl_interface wl_shm_interface;
 
     struct Wl_registry_listerner
     {

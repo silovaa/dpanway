@@ -58,6 +58,10 @@ extern (C) {
 
     extern const Wl_interface wl_callback_interface;
     extern const Wl_interface wl_surface_interface;
+    //extern const Wl_interface xdg_popup_interface;
+    extern const Wl_interface wl_output_interface;
+    extern const Wl_interface wl_seat_interface;
+    
 
     struct Wl_callback_listener {
         /**
