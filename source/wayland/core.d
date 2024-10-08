@@ -1,5 +1,33 @@
 module wayland.core;
 
+immutable class WlInterface
+{
+    private Wl_interface* m_native;
+
+    this(immutable Wl_interface* native)
+    {
+        m_native = native;
+    }
+
+    @property immutable(Wl_interface)* native() 
+    {
+        return m_native;
+    }
+
+    @property string name() 
+    {
+        import std.string : fromStringz;
+        return fromStringz(m_native.name);
+    }
+}
+
+bool wlIfaceEquals(immutable(WlInterface) a, immutable(WlInterface) b)
+{
+    import core.stdc.string : strcmp;
+
+    return a is b || strcmp(a._native.name, b._native.name) == 0;
+}
+
 extern (C) nothrow {
 
     struct Wl_display;
@@ -72,5 +100,4 @@ extern (C) nothrow {
         */
         void function(void* data, Wl_proxy*, uint callback_data) done;
     }
-
 }

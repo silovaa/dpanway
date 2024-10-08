@@ -365,11 +365,11 @@ extern (C) {
                                                             &wl_shm_interface, name, 
                                                             wl_shm_interface.name, 
                                                             1, null);
-        } else if (strcmp(iface, LayerShellProtocol.zwlr_interface.name) == 0) {
+        } else if (strcmp(iface, LayerShellInterface.native.name) == 0) {
             state.m_layer_shell = wl_proxy_marshal_constructor(registry, 
                                                             WL_REGISTRY_BIND, 
-                                                            LayerShellProtocol.zwlr_interface, name, 
-                                                            LayerShellProtocol.zwlr_interface.name, 
+                                                            LayerShellInterface.native, name, 
+                                                            LayerShellInterface.native.name, 
                                                             4, null);
         } else if (strcmp(iface, wl_seat_interface.name) == 0) {
             // wl_seat* seat = wl_proxy_marshal_constructor(registry, 

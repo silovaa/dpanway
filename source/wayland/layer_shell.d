@@ -86,7 +86,7 @@ package:
                                             wl_proxy_get_version(compositor), 0, null);
 											
         m_layer_surface = wl_proxy_marshal_flags(layer_shell, ZWLR_LAYER_SHELL_V1_GET_LAYER_SURFACE, 
-                                    LayerShellProtocol.zwlr_surfce_interface, 
+                                    LayerShellSurfaceInterface.native, 
                                     wl_proxy_get_version(layer_shell), 0, null, 
                                     m_surface, 
                                     output, 
