@@ -1,5 +1,7 @@
 module wayland.core;
 
+import core.stdc.string : strcmp;
+
 immutable class WlInterface
 {
     private Wl_interface* m_native;
@@ -19,12 +21,15 @@ immutable class WlInterface
         import std.string : fromStringz;
         return fromStringz(m_native.name);
     }
+
+    bool isSame(const(char*) str)
+    {
+        return strcmp(a._native.name, b._native.name) == 0;
+    }
 }
 
 bool wlIfaceEquals(immutable(WlInterface) a, immutable(WlInterface) b)
 {
-    import core.stdc.string : strcmp;
-
     return a is b || strcmp(a._native.name, b._native.name) == 0;
 }
 
