@@ -90,7 +90,7 @@ package:
                                     wl_proxy_get_version(layer_shell), 0, null, 
                                     m_surface, 
                                     output, 
-                                    m_layer, "LayerSurface");
+                                    m_layer, cast(const(char)*)"LayerSurface");
         if (!m_layer_surface || 
 			wl_proxy_add_listener(m_layer_surface,
 				                cast(Callback*) &m_listener, cast(void*) this) < 0)

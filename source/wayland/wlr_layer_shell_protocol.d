@@ -1,3 +1,4 @@
+module wayland.wlr_layer_shell_protocol;
 
 import wayland.core;
 
@@ -6,12 +7,12 @@ extern const Wl_interface xdg_popup_interface;
 
 struct LayerShellProtocol
 {
-    @property static const(Wl_interface*) zwlr_interface() 
+    @property static const(Wl_interface*) zwlr_interface() nothrow
     {
         return &get_inst().wl_iface;
     }
 
-    @property static const(Wl_interface*) zwlr_surfce_interface() 
+    @property static const(Wl_interface*) zwlr_surfce_interface() nothrow
     {
         return &get_inst().zwlr_layer_surface_v1_interface;
     }
@@ -30,14 +31,7 @@ struct LayerShellProtocol
 
 	static auto ref get_inst()
     {
-        static LayerShellProtocol self();
-        static Helper helper(self);
-
-        return self;
-    }
-
-private:
-    const(Wl_interface*)[] wlr_types = [
+		static Wl_interface*[] wlr_types = [
 		null,
 		null,
 		null,
@@ -48,50 +42,64 @@ private:
 		null,
 		null,
 		&xdg_popup_interface
-	];
+		];
 
-	const(Wl_message)[] zwlr_layer_shell_v1_requests = [
-        {"get_layer_surface", "no?ous", wlr_layer_shell_unstable_v1_types.ptr + 4},
-		{"destroy", "3", wlr_layer_shell_unstable_v1_types.ptr}
-    ]
+        static auto self = LayerShellProtocol(wlr_types);
 
-	const(Wl_message)[] zwlr_layer_surface_v1_requests = [
-        {"set_size", "uu", wlr_layer_shell_unstable_v1_types.ptr},
-		{"set_anchor", "u", wlr_layer_shell_unstable_v1_types.ptr},
-		{"set_exclusive_zone", "i", wlr_layer_shell_unstable_v1_types.ptr},
-		{"set_margin", "iiii", wlr_layer_shell_unstable_v1_types.ptr},
-		{"set_keyboard_interactivity", "u", wlr_layer_shell_unstable_v1_types.ptr},
-		{"get_popup", "o", wlr_layer_shell_unstable_v1_types.ptr + 9},
-		{"ack_configure", "u", wlr_layer_shell_unstable_v1_types.ptr},
-		{"destroy", "", wlr_layer_shell_unstable_v1_types.ptr},
-		{"set_layer", "2u", wlr_layer_shell_unstable_v1_types.ptr},
-		{"set_exclusive_edge", "5u", wlr_layer_shell_unstable_v1_types.ptr}
-    ]
+        return self;
+    }
 
-	const(Wl_message)[] zwlr_layer_surface_v1_events = [
-        {"configure", "uuu", wlr_layer_shell_unstable_v1_types.ptr},
-		{"closed", "", wlr_layer_shell_unstable_v1_types.ptr}
-    ]
+private:
+	this(Wl_interface*[] wlr_layer_shell_unstable_v1_types)
+	{
+		zwlr_layer_shell_v1_requests = [
+        Wl_message("get_layer_surface", "no?ous", wlr_layer_shell_unstable_v1_types.ptr + 4),
+		Wl_message("destroy", "3", wlr_layer_shell_unstable_v1_types.ptr)
+    	];
+
+		zwlr_layer_surface_v1_requests = [
+        Wl_message("set_size", "uu", wlr_layer_shell_unstable_v1_types.ptr),
+		Wl_message("set_anchor", "u", wlr_layer_shell_unstable_v1_types.ptr),
+		Wl_message("set_exclusive_zone", "i", wlr_layer_shell_unstable_v1_types.ptr),
+		Wl_message("set_margin", "iiii", wlr_layer_shell_unstable_v1_types.ptr),
+		Wl_message("set_keyboard_interactivity", "u", wlr_layer_shell_unstable_v1_types.ptr),
+		Wl_message("get_popup", "o", wlr_layer_shell_unstable_v1_types.ptr + 9),
+		Wl_message("ack_configure", "u", wlr_layer_shell_unstable_v1_types.ptr),
+		Wl_message("destroy", "", wlr_layer_shell_unstable_v1_types.ptr),
+		Wl_message("set_layer", "2u", wlr_layer_shell_unstable_v1_types.ptr),
+		Wl_message("set_exclusive_edge", "5u", wlr_layer_shell_unstable_v1_types.ptr)
+    	];
+
+		zwlr_layer_surface_v1_events = [
+        Wl_message("configure", "uuu", wlr_layer_shell_unstable_v1_types.ptr),
+		Wl_message("closed", "", wlr_layer_shell_unstable_v1_types.ptr)
+    	];
+
+		wlr_layer_shell_unstable_v1_types[4] = &zwlr_layer_surface_v1_interface;
+
+		zwlr_layer_surface_v1_interface.methods = zwlr_layer_surface_v1_requests.ptr;
+		zwlr_layer_surface_v1_interface.events = zwlr_layer_surface_v1_events.ptr;
+
+		wl_iface.methods = zwlr_layer_shell_v1_requests.ptr;
+	}
+
+	const(Wl_message)[2] zwlr_layer_shell_v1_requests;
+
+	const(Wl_message)[10] zwlr_layer_surface_v1_requests;
+
+	const(Wl_message)[2] zwlr_layer_surface_v1_events;
 
 	const(Wl_interface) zwlr_layer_surface_v1_interface = {
         "zwlr_layer_surface_v1", 5,
-		10, zwlr_layer_surface_v1_requests.ptr,
-		2, zwlr_layer_surface_v1_events.ptr
+		10, null,
+		2, null
     };
 
     const(Wl_interface) wl_iface = {
         "zwlr_layer_shell_v1", 5,
-		2, zwlr_layer_shell_v1_requests.ptr,
+		2, null,
 		0, null
-    }
-
-    struct Helper
-    {
-        this(ref LayerShellProtocol inst)
-        {
-            inst.wlr_types[4] = &inst.zwlr_layer_surface_v1_interface;
-        }
-    }
+    };
 }
 
 //---------------------------------------------------------------

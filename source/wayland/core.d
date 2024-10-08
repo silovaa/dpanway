@@ -1,6 +1,6 @@
 module wayland.core;
 
-extern (C) {
+extern (C) nothrow {
 
     struct Wl_display;
     struct Wl_proxy;
