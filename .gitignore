@@ -23,3 +23,5 @@ build-aux/main.d
 /.extrapanel-temp-config
 
 dub.selections.json
+.vscode/
+panway
