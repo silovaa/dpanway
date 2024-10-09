@@ -19,6 +19,10 @@ struct EglWaylandClient
 		    else 
 			    throw new Exception("Failed to query EGL client extensions");  
 	    }
+        import std.stdio; import std.string;
+         try
+            writeln("EglWaylandClient: ",fromStringz(client_exts_str));
+        catch(Exception e) return;
 
         if (!strstr(client_exts_str, "EGL_EXT_platform_base")) 
             throw new Exception("EGL_EXT_platform_base not supported");

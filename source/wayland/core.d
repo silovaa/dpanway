@@ -11,26 +11,26 @@ immutable class WlInterface
         m_native = native;
     }
 
-    @property immutable(Wl_interface)* native() 
+    @property immutable(Wl_interface)* native() nothrow
     {
         return m_native;
     }
 
-    @property string name() 
+    @property string name() nothrow
     {
         import std.string : fromStringz;
         return fromStringz(m_native.name);
     }
 
-    bool isSame(const(char*) str)
+    bool isSame(const(char*) str) nothrow
     {
-        return strcmp(a._native.name, b._native.name) == 0;
+        return strcmp(m_native.name, str) == 0;
     }
 }
 
 bool wlIfaceEquals(immutable(WlInterface) a, immutable(WlInterface) b)
 {
-    return a is b || strcmp(a._native.name, b._native.name) == 0;
+    return a is b || strcmp(a.m_native.name, b.m_native.name) == 0;
 }
 
 extern (C) nothrow {
@@ -50,17 +50,17 @@ extern (C) nothrow {
 
     struct Wl_interface{
         /** Interface name */
-        const char *name;
+        const(char)* name;
         /** Interface version */
         int _version;
         /** Number of methods (requests) */
         int method_count;
         /** Method (request) signatures */
-        const Wl_message *methods;
+        const(Wl_message)* methods;
         /** Number of events */
         int event_count;
         /** Event signatures */
-        const Wl_message *events;
+        const(Wl_message)* events;
     }
 
     void wl_proxy_destroy(Wl_proxy*);

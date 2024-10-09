@@ -28,7 +28,7 @@ struct DisplayLoop
 
         enforce(wl_proxy_add_listener(m_registry, 
                                     cast(Callback*) &m_registry_listener, 
-                                    &this) < 0,
+                                    &this) >= 0,
                 "add registry listener failed");
 
         if (wl_display_roundtrip(m_display) < 0) 
@@ -45,8 +45,8 @@ struct DisplayLoop
 
         // m_cursor.create(22);
 
-        fds[EventT.system].fd = -1;
-		fds[EventT.system].events = POLLIN;
+        //fds[EventT.system].fd = -1;
+		//fds[EventT.system].events = POLLIN;
 
         fds[EventT.wayland].fd = wl_display_get_fd(m_display);
 		fds[EventT.wayland].events = POLLIN;
@@ -68,7 +68,7 @@ struct DisplayLoop
     {
         isRuning = true;
 
-        while (isRuning) {
+        while (isRuning) {writeln("enter to loop");
             
             // Wayland requests can be generated while handling non-Wayland events.
             // We need to flush these.
@@ -83,8 +83,8 @@ struct DisplayLoop
             
             if (poll(fds.ptr, EventT.count, -1) > 0) {
 
-                if (fds[EventT.system].revents & POLLIN) 
-			        break;
+                // if (fds[EventT.system].revents & POLLIN) 
+			    //     break;
 		    
                 if (fds[EventT.wayland].revents & POLLIN) {
                     ret = wl_display_dispatch(m_display);
@@ -123,7 +123,7 @@ private:
     pollfd[EventT.count] fds;
     bool isRuning = false;
 
-    Wl_display*    m_display;
+    Wl_display* m_display;
 
     Wl_proxy*   m_registry;
     immutable Wl_registry_listerner m_registry_listener;  
@@ -159,7 +159,7 @@ private:
 
             m_screen.surfaces =  valid_surf;
 
-            writeln("add output name:", name_str);
+            writeln("add output name:", m_screen.name);
         }
     }
 
@@ -379,7 +379,7 @@ extern (C) {
             //                                                 3, null);
             // create_seat(state, seat);
 
-            writeln("add seat name:", iface);
+            writeln("add seat name: ", iface);
 
         } else if (strcmp(iface, wl_output_interface.name) == 0) {
             state.add_screen(wl_proxy_marshal_constructor(registry, 

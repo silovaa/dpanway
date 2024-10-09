@@ -38,8 +38,8 @@ class LayerSurface
 
     //@property size() const;
 
-    import std.typecons;
-    @property void anchor(BitFlags!Anchor);
+    //import std.typecons;
+    //@property void anchor(BitFlags!Anchor);
 
 protected:
 	final void queryDraw() 
@@ -178,9 +178,10 @@ struct Layer_surface_listener {
         wl_proxy_marshal_flags(layer_surface, ZWLR_LAYER_SURFACE_V1_ACK_CONFIGURE, 
 							null, wl_proxy_get_version(layer_surface), 
 							0, serial);
+import std.stdio;							
 
-        //self.draw(); // --???
-
+        self.draw(); // --???
+writeln("enter config ",width, " ", height);
 		self.queryDraw();
     }
 
@@ -217,7 +218,7 @@ struct Layer_surface_listener {
 		self.draw();
 
 		// wl_proxy_marshal_flags(self.m_surface, WL_SURFACE_COMMIT, 
-		// 					null, ver, 
+		// 					null, wl_proxy_get_version(self.m_surface), 
 		// 					0);
 	}
 }

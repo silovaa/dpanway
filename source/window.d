@@ -1,5 +1,7 @@
 module window;
 
+import std.stdio;
+
 import wayland.core;
 import wayland.layer_shell;
 import egl;
@@ -11,6 +13,15 @@ class Window: LayerSurface
     {
         m_width = wigth;
         m_height = height;
+        writeln("Window Ctor");
+    }
+
+    ~this ()
+    {
+        if (m_egl_window)
+            wl_egl_window_destroy(m_egl_window);
+writeln("Window Dtor");
+        
     }
 
     override void prepare(Wl_display* display)
@@ -33,8 +44,12 @@ class Window: LayerSurface
     override void draw() nothrow
     {
         m_egl.makeCurrent();
-
+        
         glViewport(0, 0, m_width, m_height);
+
+        try
+            writeln("enter draw");
+        catch(Exception e) return;
         glClearColor(0.18, 0.21, 0.81, 1);
 	    glClear(GL_COLOR_BUFFER_BIT);
 
@@ -47,12 +62,6 @@ class Window: LayerSurface
 	    wl_egl_window_destroy(m_egl_window);
 
         m_egl_window = null;
-    }
-
-    ~this ()
-    {
-        if (m_egl_window)
-            wl_egl_window_destroy(m_egl_window);
     }
 
 private:

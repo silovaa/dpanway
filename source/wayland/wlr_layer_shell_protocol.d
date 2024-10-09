@@ -1,8 +1,7 @@
 module wayland.wlr_layer_shell_protocol;
 
 import wayland.core;
-
-extern const Wl_interface xdg_popup_interface;
+import wayland.xdg_shell_protocol: XdgPopupInterface;
 
 immutable WlInterface LayerShellInterface;
 immutable WlInterface LayerShellSurfaceInterface;
@@ -10,22 +9,20 @@ immutable WlInterface LayerShellSurfaceInterface;
 private:
 immutable Wl_interface[] wl_ifaces;
 
-static this() {
+shared static this() {
     auto ifaces = new Wl_interface[2];
-    // Wl_interface zwlr_layer_surface_v1_interface;
-    // Wl_interface wl_iface;
 
     auto wlr_types = [
 		null,
 		null,
 		null,
 		null,
-        &ifaces[1]//&zwlr_layer_surface_v1_interface,
+        &ifaces[1],//&zwlr_layer_surface_v1_interface,
 		&wl_surface_interface,
 		&wl_output_interface,
 		null,
 		null,
-		&xdg_popup_interface
+		XdgPopupInterface.native
 	];
 
     auto zwlr_layer_shell_v1_requests = [
@@ -33,11 +30,12 @@ static this() {
 		Wl_message("destroy", "3", &wlr_types[0])
     ];
 
-    ifaces[0] = Wl_interface(
-        "zwlr_layer_shell_v1", 5,
-		2, zwlr_layer_shell_v1_requests.ptr,
-		0, null
-    );
+    ifaces[0].name = "zwlr_layer_shell_v1";
+	ifaces[0]._version = 5;
+	ifaces[0].method_count = 2;
+	ifaces[0].methods = zwlr_layer_shell_v1_requests.ptr;
+	ifaces[0].event_count =	0;
+	ifaces[0].events = null;
 
 	auto zwlr_layer_surface_v1_requests = [
         Wl_message("set_size", "uu", &wlr_types[0]),
