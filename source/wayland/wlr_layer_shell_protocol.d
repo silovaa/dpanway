@@ -3,6 +3,21 @@ module wayland.wlr_layer_shell_protocol;
 import wayland.core;
 import wayland.xdg_shell_protocol: XdgPopupInterface;
 
+struct WlLayerShell
+{
+    static @property immutable(WlInterface) iface()
+    {
+        //static s_iface = new immutable WlInterface(&wl_shm_interface);
+        return immutable WlInterface LayerShellInterface;
+    } 
+
+    package Wl_proxy* native;
+
+    ~this()
+    {if (m_native) wl_proxy_destroy(m_native);}
+
+}
+
 immutable WlInterface LayerShellInterface;
 immutable WlInterface LayerShellSurfaceInterface;
 

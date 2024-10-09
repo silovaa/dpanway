@@ -22,6 +22,9 @@ immutable class WlInterface
         return fromStringz(m_native.name);
     }
 
+    @property uint p_version() nothrow
+    {return m_native._version;}
+
     bool isSame(const(char*) str) nothrow
     {
         return strcmp(m_native.name, str) == 0;
@@ -31,6 +34,19 @@ immutable class WlInterface
 bool wlIfaceEquals(immutable(WlInterface) a, immutable(WlInterface) b)
 {
     return a is b || strcmp(a.m_native.name, b.m_native.name) == 0;
+}
+
+class WlListener(T): T
+{
+    private const(Callback[]) m_callbaks;
+
+    this(const(Callback[]) cbs)
+    {m_callbaks = cbs;}
+
+    final void create()
+    {
+        
+    }
 }
 
 extern (C) nothrow {
@@ -92,7 +108,7 @@ extern (C) nothrow {
     extern const Wl_interface wl_callback_interface;
     extern const Wl_interface wl_surface_interface;
     //extern const Wl_interface xdg_popup_interface;
-    extern const Wl_interface wl_output_interface;
+    //extern const Wl_interface wl_output_interface;
     extern const Wl_interface wl_seat_interface;
     
 
