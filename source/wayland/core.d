@@ -51,7 +51,66 @@ class WlListener(T)
     }
 }
 
-mixin template GlobalProxy()(alias )
+mixin template ListenerProxy(ListenerT)
+{
+    @property void listener(ListenerT lst)
+    {
+        m_listener = lst;
+        m_listener.create(this);
+    }
+
+    private ListenerT m_listener;
+}
+
+mixin template GlobalProxy(alias i)
+{
+     static @property immutable(WlInterface) iface()
+    {
+        static auto s_iface = new immutable WlInterface(&i);
+        return s_iface;
+    } 
+
+    package Wl_proxy* native;
+
+    ~this()
+    {if (native) wl_proxy_destroy(native);}
+}
+
+mixin template GlobalProxy(alias i, alias op_destroy)
+{
+     static @property immutable(WlInterface) iface()
+    {
+        static auto s_iface = new immutable WlInterface(&i);
+        return s_iface;
+    } 
+
+    package Wl_proxy* native;
+
+    ~this()
+    {
+        if (native)
+            wl_proxy_marshal_flags(native, op_destroy, null, 
+                                wl_proxy_get_version(native), 
+							    WL_MARSHAL_FLAG_DESTROY);
+    }
+}
+
+mixin template Proxy!(ParentT, alias i, alias op_create, alias op_destroy)
+{
+    this(in ParentT parent)
+    {
+        native = wl_proxy_marshal_flags(parent.native, op_code, &i, 
+                                        wl_proxy_get_version(parent.native), 0, null);
+    }
+    ~this()
+    {
+        if (native)
+            wl_proxy_marshal_flags(native, op_destroy, null, 
+                                wl_proxy_get_version(native), 
+							    WL_MARSHAL_FLAG_DESTROY);
+    }
+    package Wl_proxy* native;
+}
 
 extern (C) nothrow {
 
@@ -95,18 +154,6 @@ extern (C) nothrow {
     enum uint WL_MARSHAL_FLAG_DESTROY = 1 << 0;
 
     enum uint WL_COMPOSITOR_CREATE_REGION = 1;
-
-    enum uint  WL_SURFACE_DESTROY = 0;
-    enum uint  WL_SURFACE_ATTACH = 1;
-    enum uint  WL_SURFACE_DAMAGE = 2;
-    enum uint  WL_SURFACE_FRAME = 3;
-    enum uint  WL_SURFACE_SET_OPAQUE_REGION = 4;
-    enum uint  WL_SURFACE_SET_INPUT_REGION = 5;
-    enum uint  WL_SURFACE_COMMIT = 6;
-    enum uint  WL_SURFACE_SET_BUFFER_TRANSFORM = 7;
-    enum uint  WL_SURFACE_SET_BUFFER_SCALE = 8;
-    enum uint  WL_SURFACE_DAMAGE_BUFFER = 9;
-    enum uint  WL_SURFACE_OFFSET = 10;
 
     extern const Wl_interface wl_callback_interface;
     //extern const Wl_interface wl_surface_interface;

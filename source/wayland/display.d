@@ -10,7 +10,7 @@ import wayland.core;
 
 struct WlDisplay
 {
-    const(Wl_display)* opCast() const => m_native;
+    alias m_native this;
 
     this(const(char)* name)
     {
@@ -131,34 +131,10 @@ struct WlRegistry
     }
 }
 
-struct WlCompositor
-{
-    static @property immutable(WlInterface) iface()
-    {
-        static extern const Wl_interface wl_compositor_interface;
-        static s_iface = new immutable WlInterface(&wl_compositor_interface);
-        return s_iface;
-    } 
-
-    package Wl_proxy* native;
-
-    ~this()
-    {if (native) wl_proxy_destroy(native);}
-}
-
 struct WlShm
 {
-    static @property immutable(WlInterface) iface()
-    {
-        static extern const Wl_interface wl_shm_interface;
-        static s_iface = new immutable WlInterface(&wl_shm_interface);
-        return s_iface;
-    } 
-
-    package Wl_proxy* native;
-
-    ~this()
-    {if (m_native) wl_proxy_destroy(m_native);}
+    private static extern const Wl_interface wl_shm_interface;
+    mixin GlobalProxy!(wl_shm_interface);
 }
 
 class WlOutputListener: WlListener!WlOutput
@@ -241,52 +217,9 @@ class WlOutputListener: WlListener!WlOutput
 }
 struct WlOutput
 {
-    static @property immutable(WlInterface) iface()
-    {
-        static extern const Wl_interface wl_output_interface;
-        static s_iface = new immutable WlInterface(&wl_output_interface);
-        return s_iface;
-    } 
-
-    ~this()
-    {if (m_native) wl_proxy_destroy(m_native);}
-
-    package Wl_proxy* native;
- 
-    @property void listener(WlOutputListener lst)
-    {
-        m_listener = lst;
-        m_listener.create(this);
-    }
-
-    private WlOutputListener m_listener;
-}
-
-class WlSufaceListener: WlListener!WlSurface
-{}
-struct WlSurface
-{
-    this(in WlCompositor compositor)
-    {
-        static extern const Wl_interface wl_surface_interface;
-        native = wl_proxy_marshal_flags(compositor.native, WL_COMPOSITOR_CREATE_SURFACE,
-                                            &wl_surface_interface, 
-                                            wl_proxy_get_version(compositor.native), 0, null);
-    }
-
-    package Wl_proxy* native;
-
-    @property void listener(WlSufaceListener lst)
-    {
-        m_listener = lst;
-        m_listener.create(this);
-    }
-
-    private WlSufaceListener m_listener;
-
-    private{
-        enum uint WL_COMPOSITOR_CREATE_SURFACE = 0;
-    }
+    private static extern const Wl_interface wl_output_interface;
+    mixin GlobalProxy!(wl_output_interface);
+    mixin ListenerProxy!WlOutputListener;
 }
 
 enum EventT
