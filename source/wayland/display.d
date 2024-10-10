@@ -1,16 +1,16 @@
 module wayland.display;
 
-import core.sys.posix.poll: poll, pollfd, POLLIN, POLLOUT;
+//import core.sys.posix.poll: poll, pollfd, POLLIN, POLLOUT;
 import std.exception;
-import std.string;
-import std.stdio;
+//import std.string;
+//import std.stdio;
 
 import wayland.core;
 //import wayland.layer_shell;
 
 struct WlDisplay
 {
-    const(Wl_display)* opCast!const(Wl_display)*() => m_native;
+    const(Wl_display)* opCast() const => m_native;
 
     this(const(char)* name)
     {
@@ -38,12 +38,55 @@ extern(C) nothrow {
     int wl_display_roundtrip(Wl_display*);
 }
 
-struct WlRegistry
+class WlRegistryListener: WlListener!WlRegistry
 {
 
+    alias GlobalCb = void delegate(ref WlRegistry, uint name, 
+                    const(char)* iface, uint ver) nothrow;
+
+    alias GlobalRemoveCb = void delegate(ref WlRegistry, uint name, 
+                    const(char)* iface, uint ver) nothrow;
+    
+    this(lobalC g_cb, GlobalRemoveCb grm_cb = null)
+    {
+        super([
+            &handle_global, 
+            &handle_global_rem
+        ]);
+
+        global = g_cb;
+        global_remove = grm_cb;
+    }
+
+    GlobalCb global;
+    GlobalRemoveCb global_remove;
+    
+    private extern(C) {
+        static void handle_global(void* data, Wl_proxy* registry,
+		                    uint name, const(char)* iface, uint ver) 
+        {
+	        auto self = cast(WlRegistry*) data;
+            //global не должен быть пустым
+            assert(self.m_listener.global);
+            self.m_listener.global(*self, name, iface, ver);
+            
+        }
+        static void handle_global_rem(void* data, Wl_proxy* registry,
+		                    uint name) 
+        {
+	        auto self = cast(WlRegistry*) data;
+            if (self.m_listener.global_remove)
+                self.m_listener.global_remove(*self, name);
+        }
+    }
+}
+struct WlRegistry
+{
     this(const WlDisplay dpy)
     {
-        m_native =  enforce(wl_proxy_marshal_constructor(
+        static extern const Wl_interface wl_registry_interface;
+
+        native =  enforce(wl_proxy_marshal_constructor(
                                 cast(Wl_proxy*) dpy.m_native,
                                 WL_DISPLAY_GET_REGISTRY, 
                                 &wl_registry_interface, null) >= 0,
@@ -51,22 +94,12 @@ struct WlRegistry
     }
 
     ~this()
-    {wl_proxy_destroy(m_native);}
+    {wl_proxy_destroy(native);}
 
-    alias Global_cb = void delegate(ref WlRegistry, uint name, 
-                                const(char)* iface, 
-                                uint ver) nothrow
-    alias GlobalRemove_cb = void delegate(ref WlRegistry, uint name) nothrow;
-
-    void listener(Global_cb global, 
-                  GlobalRemove_cb global_rem = (WlRegistry, uint){})
+    @property void listener(WlRegistryListener lst)
     {
-        m_global = global;
-        m_global_remove = global_rem;
-        enforce(wl_proxy_add_listener(m_native,  
-                                    cast(Callback*) &m_registry_listener, 
-                                    &this) >= 0,
-                "add registry listener failed");
+        m_listener = lst;
+        m_listener.create(this);
     }
 
     bool bind(T)(ref T proxy, const(char)* name, uint name_id, uint ver) nothrow
@@ -79,7 +112,7 @@ struct WlRegistry
                 //To do сигнал версия протокола системы ниже чем наша
             }
             else _version = iface.p_version;
-            proxy.native = wl_proxy_marshal_constructor(m_native, 
+            proxy.native = wl_proxy_marshal_constructor(native, 
                                             WL_REGISTRY_BIND, 
                                             iface.native, name_id, 
                                             name, _version, null);
@@ -89,44 +122,12 @@ struct WlRegistry
         return false;
     }
 
+    package Wl_proxy* native;
+
     private {
-    Wl_proxy* m_native;
-    Global_cb m_global;
-    GlobalRemove_cb m_global_remove;
-    immutable Wl_registry_listerner m_registry_listener;
+        enum uint WL_REGISTRY_BIND = 0;
 
-    enum uint WL_REGISTRY_BIND = 0;
-
-    exterh(C) nothrow{
-        extern const Wl_interface wl_registry_interface;
-
-        struct Wl_registry_listerner
-        {
-            void function (void* data,
-                        Wl_proxy* wl_registry,
-                        uint name,
-                        const(char)* iface,
-                        uint ver) global = &handle_global;
-        
-            void function (void *data,
-                        Wl_proxy *wl_registry,
-                        uint name) global_remove = &handle_global_rem;
-        }
-
-        void handle_global(void* data, Wl_proxy* registry,
-		                    uint name, const(char)* iface, uint ver) 
-        {
-	        auto self = cast(WlRegistry*) data;
-            self.m_global(*self, name, iface, ver);
-        }
-        void handle_global_rem(void* data, Wl_proxy* registry,
-		                    uint name) 
-        {
-	        auto self = cast(WlRegistry*) data;
-            self.m_global_remove(*self, name);
-        }
-
-        }    
+        WlRegistryListener m_listener;
     }
 }
 
@@ -134,6 +135,7 @@ struct WlCompositor
 {
     static @property immutable(WlInterface) iface()
     {
+        static extern const Wl_interface wl_compositor_interface;
         static s_iface = new immutable WlInterface(&wl_compositor_interface);
         return s_iface;
     } 
@@ -141,17 +143,14 @@ struct WlCompositor
     package Wl_proxy* native;
 
     ~this()
-    {if (m_native) wl_proxy_destroy(m_native);}
-
-    private extern(C) {
-        extern const Wl_interface wl_compositor_interface;
-    }
+    {if (native) wl_proxy_destroy(native);}
 }
 
 struct WlShm
 {
     static @property immutable(WlInterface) iface()
     {
+        static extern const Wl_interface wl_shm_interface;
         static s_iface = new immutable WlInterface(&wl_shm_interface);
         return s_iface;
     } 
@@ -160,16 +159,91 @@ struct WlShm
 
     ~this()
     {if (m_native) wl_proxy_destroy(m_native);}
-
-    private extern(C) {
-        extern const Wl_interface wl_shm_interface;
-    }
 }
 
+class WlOutputListener: WlListener!WlOutput
+{
+    this()
+    {
+        super([
+            &handle_geometry,
+            &handle_mode,
+            &handle_done,
+            &handle_scale,
+            &handle_name,
+            &handle_description
+        ]);
+    }
+
+    void delegate(ref WlOutput,
+                    int x, int y,
+                    int physical_width,
+                    int physical_height,
+                    int subpixel,
+                    string make,
+                    string model,
+                    int transform    ) nothrow geometry;
+    void delegate(ref WlOutput,
+                    uint flags,
+		            int width,
+		            int height,
+		            int refresh) nothrow mode; 
+    void delegate(ref WlOutput) nothrow done;  
+    void delegate(ref WlOutput, int factor) nothrow scale;
+    void delegate(ref WlOutput, string name) nothrow name;
+    void delegate(ref WlOutput, string desc) nothrow description;
+
+    private extern(C) {
+        static void handle_geometry(void *data, Wl_proxy* wl_output,
+		            int x, int y, int phy_width, int phy_height,
+		            int subpixel, const(char)* make, const(char)* model,
+		            int transform) 
+        {
+
+            auto self = cast(WlOutput*) data;
+            if (self.m_listener.geometry)
+                self.m_listener.geometry(*self, x, y, phy_width, phy_height, 
+                                        subpixel, fromStringz(make), fromStringz(model), transform);
+        }
+        static void handle_mode(void *data, Wl_proxy*,
+		                    uint flags, int width, int height,
+		                    int refresh)
+        {
+            auto self = cast(WlOutput*) data;
+            if (self.m_listener.mode)
+                self.m_listener.mode(*self, flags, width, height, refresh);
+        }
+        static void handle_done(void *data, Wl_proxy*)
+        {
+            auto self = cast(WlOutput*) data;
+            if (self.m_listener.done)
+                self.m_listener.done(*self);
+        }
+        static void handle_scale(void *data, Wl_proxy*, int factor) 
+        {
+            auto self = cast(WlOutput*) data;
+            if (self.m_listener.scale)
+                self.m_listener.scale(*self, factor);
+        }
+        static void handle_name(void *data, Wl_proxy*, const(char)* name) 
+        {
+            auto self = cast(WlOutput*) data;
+            if (self.m_listener.name)
+                self.m_listener.name(*self, fromStringz(name));
+        }
+        static void handle_description(void *data, Wl_proxy*, const(char)* desc) 
+        {
+            auto self = cast(WlOutput*) data;
+            if (self.m_listener.description)
+                self.m_listener.description(*self, fromStringz(desc));
+        }
+    }   
+}
 struct WlOutput
 {
     static @property immutable(WlInterface) iface()
     {
+        static extern const Wl_interface wl_output_interface;
         static s_iface = new immutable WlInterface(&wl_output_interface);
         return s_iface;
     } 
@@ -177,99 +251,42 @@ struct WlOutput
     ~this()
     {if (m_native) wl_proxy_destroy(m_native);}
 
-    alias Geometry_cb = void delegate(ref WlOutput,
-                                int x, int y,
-                                int physical_width,
-                                int physical_height,
-                                int subpixel,
-                                const(char)* make,
-                                const(char)* model,
-                                int transform    ) nothrow;
-    alias Mode_cb = void delegate(ref WlOutput,
-                                uint flags,
-		                        int width,
-		                        int height,
-		                        int refresh) nothrow;
-    alias Done_cb = void delegate(ref WlOutput) nothrow;
-    alias Scale_cb = void delegate(ref WlOutput, int factor) nothrow;
-    alias Name_cb = void delegate(ref WlOutput, const(char)* name) nothrow;
-    alias Description_cb = void delegate(ref WlOutput, const(char)* desc) nothrow; 
-
-    //void listener()
     package Wl_proxy* native;
  
-    private:
-        immutable Wl_output_listener output_listener;
-        Geometry_cb geometry_cb;
-        Mode_cb mode_cb;
-        Done_cb done_cb;
-        Scale_cb scale_cb;
-        Name_cb name_cb;
-        Description_cb;
+    @property void listener(WlOutputListener lst)
+    {
+        m_listener = lst;
+        m_listener.create(this);
+    }
 
-    extern(C):
-        extern const Wl_interface wl_output_interface;
+    private WlOutputListener m_listener;
+}
 
-        struct Wl_output_listener
-        {
-            void function (void *data,
-                        Wl_proxy *wl_output,
-                        int x,
-                        int y,
-                        int physical_width,
-                        int physical_height,
-                        int subpixel,
-                        const(char)* make,
-                        const(char)* model,
-                        int transform) geometry;
-            
-            void function (void *data,
-		                Wl_proxy *wl_output,
-		                uint flags,
-		                int width,
-		                int height,
-		                int refresh) mode = (void*,Wl_proxy*,uint,int,int,int){};
+class WlSufaceListener: WlListener!WlSurface
+{}
+struct WlSurface
+{
+    this(in WlCompositor compositor)
+    {
+        static extern const Wl_interface wl_surface_interface;
+        native = wl_proxy_marshal_flags(compositor.native, WL_COMPOSITOR_CREATE_SURFACE,
+                                            &wl_surface_interface, 
+                                            wl_proxy_get_version(compositor.native), 0, null);
+    }
 
-            void function (void *data,
-		                Wl_proxy *wl_output) done = (void*,Wl_proxy*){};
+    package Wl_proxy* native;
 
-            void function (void *data,
-		                Wl_proxy *wl_output,
-		                int factor) scale;
+    @property void listener(WlSufaceListener lst)
+    {
+        m_listener = lst;
+        m_listener.create(this);
+    }
 
-            void function (void *data,
-		                Wl_proxy *wl_output,
-		                const(char)* name) name;
+    private WlSufaceListener m_listener;
 
-            void function (void *data,
-			            Wl_proxy *wl_output,
-			            const(char)* description) description = (void*,Wl_proxy*,const(char)*){};
-        }
-
-        static void handle_geometry(void *data, Wl_proxy* wl_output,
-		            int x, int y, int phy_width, int phy_height,
-		            int subpixel, const(char)* make, const(char)* model,
-		            int transform) 
-        {
-
-            auto self = cast(Screen*) data;
-            self.subpixel = subpixel;
-        }
-
-        static void handle_scale(void *data, Wl_proxy* wl_output,
-                        int factor) 
-        {
-            auto self = cast(Screen*) data;
-            self.scale = factor;
-        }
-
-        static void handle_name(void *data, Wl_proxy* wl_output,
-            const char *name) 
-        {
-            auto self = cast(Screen*) data;
-            self.name = fromStringz(name);
-        }
-
+    private{
+        enum uint WL_COMPOSITOR_CREATE_SURFACE = 0;
+    }
 }
 
 enum EventT

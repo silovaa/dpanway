@@ -11,12 +11,12 @@ struct DisplayLoop
        
 	    m_registry = WlRegistry(m_display);
 
-        m_registry.listener(&global_cb);
+        m_registry.listener = new WlRegistryListener(&global_cb);
 
         if (wl_display_roundtrip(m_display) < 0) 
 		    throw new Exception("wl_display_roundtrip() failed");
 
-	    if (m_compositor is null) 
+	    if (!m_compositor) 
 		    throw new Exception("compositor doesn't support wl_compositor");
 		
 	    if (m_shm is null)

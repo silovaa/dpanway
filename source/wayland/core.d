@@ -36,18 +36,22 @@ bool wlIfaceEquals(immutable(WlInterface) a, immutable(WlInterface) b)
     return a is b || strcmp(a.m_native.name, b.m_native.name) == 0;
 }
 
-class WlListener(T): T
+class WlListener(T)
 {
     private const(Callback[]) m_callbaks;
 
     this(const(Callback[]) cbs)
     {m_callbaks = cbs;}
 
-    final void create()
+    package final void create(ref T proxy)
     {
-        
+        enforce(wl_proxy_add_listener(proxy.native, m_callbaks.ptr, 
+                                    cast(void*) proxy) >= 0,
+                "add listener failed");
     }
 }
+
+mixin template GlobalProxy()(alias )
 
 extern (C) nothrow {
 
@@ -90,7 +94,6 @@ extern (C) nothrow {
 
     enum uint WL_MARSHAL_FLAG_DESTROY = 1 << 0;
 
-    enum uint WL_COMPOSITOR_CREATE_SURFACE = 0;
     enum uint WL_COMPOSITOR_CREATE_REGION = 1;
 
     enum uint  WL_SURFACE_DESTROY = 0;
@@ -106,7 +109,7 @@ extern (C) nothrow {
     enum uint  WL_SURFACE_OFFSET = 10;
 
     extern const Wl_interface wl_callback_interface;
-    extern const Wl_interface wl_surface_interface;
+    //extern const Wl_interface wl_surface_interface;
     //extern const Wl_interface xdg_popup_interface;
     //extern const Wl_interface wl_output_interface;
     extern const Wl_interface wl_seat_interface;

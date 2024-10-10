@@ -8,7 +8,7 @@ struct WlLayerShell
     static @property immutable(WlInterface) iface()
     {
         //static s_iface = new immutable WlInterface(&wl_shm_interface);
-        return immutable WlInterface LayerShellInterface;
+        return LayerShellInterface;
     } 
 
     package Wl_proxy* native;
