@@ -2,7 +2,8 @@ module wayland.wlr_layer_shell;
 
 import wayland.core;
 import wayland.compositor;
-import wayland.output;
+//import wayland.output;
+import wayland.display;
 import wayland.xdg_shell_protocol;
 
 enum Layer {
@@ -36,48 +37,26 @@ struct WlrLayerShell
 	enum uint GET_LAYER_SURFACE = 0;
 	enum uint DESTROY = 1;
 
-    mixin GlobalProxy!(wl_ifaces[0], DESTROY);
+    mixin GlobalProxyExt!(LayerShellInterface, DESTROY);
 }
 
-class WlrLayerSufaceListener: WlListener!WlrLayerSurface
+class WlrLayerSufaceListener: WlListener!(WlrLayerSurface, WlrLayerSurface.StructCallbacs)
 {
-    alias ConfigureCb = void delegate (ref WlrLayerSurface, uint width, uint height) nothrow;
-    alias ClosedCb    = void delegate (ref WlrLayerSurface) nothrow;
+    alias ConfigureCb = void delegate (uint width, uint height) nothrow;
+    alias ClosedCb    = void delegate () nothrow;
 
-    this(ConfigureCb configure, ClosedCb closed)
-    {
-		super([
-			&config_cb, &close_cb,
-		]);
+    // this(ConfigureCb configure, ClosedCb closed)
+    // {
+	// 	super([
+	// 		&config_cb, &close_cb,
+	// 	]);
 
-		this.configure = configure;
-		this.closed = closed;
-    }
+	// 	this.configure = configure;
+	// 	this.closed = closed;
+    // }
 
 	ConfigureCb configure;
 	ClosedCb closed;
-
-    private extern(C) {
-        static void config_cb(void *data, Wl_proxy* layer_surface,
-			  		uint serial, uint width, uint height)
-        {
-            auto self = cast(WlSurface) data;
-			if (self.m_listener.configure)
-            	self.m_listener.configure(width, height);
-
-            wl_proxy_marshal_flags(layer_surface, WlrLayerSurface.ACK_CONFIGURE, 
-                                null, wl_proxy_get_version(layer_surface), 
-                                0, serial);
-        }
-
-		void close_cb(void *data, Wl_proxy* layer_surface)
-    	{
-			auto self = cast(WlSurface) data;
-			if (self.m_listener.closed)
-            	self.m_listener.closed();
-		}
-    
-    }
 }
 struct WlrLayerSurface
 {
@@ -92,29 +71,20 @@ struct WlrLayerSurface
 	enum uint SET_LAYER = 8;
 	enum uint SET_EXCLUSIVE_EDGE = 9;
 
-	this(in WlrLayerShell layer_shell, 
+	this(ref WlrLayerShell layer_shell, 
 		in WlSurface 	surface, 
 		in WlOutput 	output, 
 		in Layer 		layer = Layer.TOP)
 	{
 		native = wl_proxy_marshal_flags(layer_shell.native, WlrLayerShell.GET_LAYER_SURFACE, 
-                                    wl_ifaces[1], 
+                                    &wl_ifaces[1], 
                                     wl_proxy_get_version(layer_shell.native), 0, null, 
                                     surface.native, 
                                     output.native, 
                                     layer, cast(const(char)*)"LayerSurface");
 	}
 
-	~this()
-	{
-		if (native)
-			wl_proxy_marshal_flags(native, ZWLR_LAYER_SURFACE_V1_DESTROY, 
-		 					null, wl_proxy_get_version(native), 
-							WL_MARSHAL_FLAG_DESTROY);	
-	}
-
-	package Wl_proxy* native;
-
+	mixin Proxy!(DESTROY);
 	mixin ListenerProxy!WlrLayerSufaceListener;
 
 	void setSize(uint w, uint h) nothrow
@@ -128,11 +98,38 @@ struct WlrLayerSurface
 		wl_proxy_marshal_flags(native, SET_ANCHOR, null, 
                                wl_proxy_get_version(native), 0, a);
 	}
+
+	private extern(C) {
+		struct StructCallbacs
+        {
+			auto cb1 = &config_cb;
+			auto cb2 = &close_cb;
+		}
+        static void config_cb(void *data, Wl_proxy* layer_surface,
+			  		uint serial, uint width, uint height)
+        {
+            auto self = cast(WlrLayerSurface*) data;
+			if (self.m_listener.configure)
+            	self.m_listener.configure(width, height);
+
+            wl_proxy_marshal_flags(layer_surface, WlrLayerSurface.ACK_CONFIGURE, 
+                                null, wl_proxy_get_version(layer_surface), 
+                                0, serial);
+        }
+
+		void close_cb(void *data, Wl_proxy* layer_surface)
+    	{
+			auto self = cast(WlrLayerSurface*) data;
+			if (self.m_listener.closed)
+            	self.m_listener.closed();
+		}
+    
+    }
 }
 
 
-//immutable WlInterface LayerShellInterface;
-//immutable WlInterface LayerShellSurfaceInterface;
+immutable WlInterface LayerShellInterface;
+immutable WlInterface LayerShellSurfaceInterface;
 
 private:
 immutable Wl_interface[] wl_ifaces;
@@ -146,8 +143,8 @@ shared static this() {
 		null,
 		null,
         &ifaces[1],//&zwlr_layer_surface_v1_interface,
-		&wl_surface_interface,
-		&wl_output_interface,
+		WlSurface.iface.native,
+		WlOutput.iface.native,
 		null,
 		null,
 		XdgPopupInterface.native

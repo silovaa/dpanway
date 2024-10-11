@@ -1,6 +1,9 @@
 module wayland.xdg_shell_protocol;
 
 import wayland.core;
+import wayland.compositor: WlSurface;
+import wayland.display: WlOutput;
+
 
 immutable WlInterface XdgPopupInterface;
 immutable WlInterface XdgPositionerInterface;
@@ -21,7 +24,7 @@ shared static this() {
         null,
         &ifaces[1],
         &ifaces[2],
-        &wl_surface_interface,
+        WlSurface.iface.native,
         &ifaces[3],
         &ifaces[0],
         &ifaces[2],
@@ -36,7 +39,7 @@ shared static this() {
         &wl_seat_interface,
         null,
         null,
-        &wl_output_interface,
+        WlOutput.iface.native,
         &wl_seat_interface,
         null,
         &ifaces[1],

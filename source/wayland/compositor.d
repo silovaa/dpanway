@@ -6,12 +6,12 @@ struct WlCompositor
 {
     enum uint CREATE_SURFACE = 0;
 
-    private static extern const Wl_interface wl_compositor_interface;
+    private static extern immutable Wl_interface wl_compositor_interface;
     mixin GlobalProxy!(wl_compositor_interface);
 }
 
-class WlSufaceListener: WlListener!WlSurface
-{}
+// class WlSufaceListener: WlListener!WlSurface
+// {}
 struct WlSurface
 {
     enum uint  DESTROY = 0;
@@ -26,10 +26,16 @@ struct WlSurface
     enum uint  DAMAGE_BUFFER = 9;
     enum uint  OFFSET = 10;
 
-    private static extern const Wl_interface wl_surface_interface;
-    mixin Proxy!(WlCompositor, wl_surface_interface, 
-                WlCompositor.CREATE_SURFACE, DESTROY)
-    mixin ListenerProxy!WlSufaceListener;
+    this(ref WlCompositor parent)
+    {
+        
+        native = wl_proxy_marshal_flags(parent.native, WlCompositor.CREATE_SURFACE, 
+                                        &wl_surface_interface, 
+                                        wl_proxy_get_version(parent.native), 0, null);
+    }
+
+    mixin GlobalProxyExt!(wl_surface_interface, DESTROY);
+    //mixin ListenerProxy!WlSufaceListener;
 
     void commit() nothrow 
     {
@@ -37,4 +43,8 @@ struct WlSurface
                              wl_proxy_get_version(native), 0);
     }
         
+}
+
+extern(C) {
+    extern immutable Wl_interface wl_surface_interface;
 }

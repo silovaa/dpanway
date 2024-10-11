@@ -1,5 +1,6 @@
 module wayland.core;
 
+import std.exception;
 import core.stdc.string : strcmp;
 
 immutable class WlInterface
@@ -36,17 +37,19 @@ bool wlIfaceEquals(immutable(WlInterface) a, immutable(WlInterface) b)
     return a is b || strcmp(a.m_native.name, b.m_native.name) == 0;
 }
 
-class WlListener(T)
+class WlListener(T, StructFunc)
 {
-    private const(Callback[]) m_callbaks;
+    //private const(Callback)[] m_callbaks;
+    private immutable StructFunc m_callbaks;
 
-    this(const(Callback[]) cbs)
-    {m_callbaks = cbs;}
+    // this(const(Callback[]) cbs)
+    // {m_callbaks = cbs;}
 
     package final void create(ref T proxy)
     {
-        enforce(wl_proxy_add_listener(proxy.native, m_callbaks.ptr, 
-                                    cast(void*) proxy) >= 0,
+        enforce(wl_proxy_add_listener(proxy.native, 
+                                    cast(Callback*) &m_callbaks, 
+                                    cast(void*) &proxy) >= 0,
                 "add listener failed");
     }
 }
@@ -64,7 +67,7 @@ mixin template ListenerProxy(ListenerT)
 
 mixin template GlobalProxy(alias i)
 {
-     static @property immutable(WlInterface) iface()
+    static @property immutable(WlInterface) iface()
     {
         static auto s_iface = new immutable WlInterface(&i);
         return s_iface;
@@ -74,14 +77,20 @@ mixin template GlobalProxy(alias i)
 
     ~this()
     {if (native) wl_proxy_destroy(native);}
+
+    @disable this(this);
 }
 
-mixin template GlobalProxy(alias i, alias op_destroy)
+mixin template GlobalProxyExt(alias i, alias op_destroy)
 {
      static @property immutable(WlInterface) iface()
     {
-        static auto s_iface = new immutable WlInterface(&i);
-        return s_iface;
+        static if(is(typeof(i) == immutable(WlInterface)))
+            return i;
+        else {
+            static auto s_iface = new immutable WlInterface(&i);
+            return s_iface;
+        }
     } 
 
     package Wl_proxy* native;
@@ -93,15 +102,12 @@ mixin template GlobalProxy(alias i, alias op_destroy)
                                 wl_proxy_get_version(native), 
 							    WL_MARSHAL_FLAG_DESTROY);
     }
+
+    @disable this(this);
 }
 
-mixin template Proxy!(ParentT, alias i, alias op_create, alias op_destroy)
+mixin template Proxy(alias op_destroy)
 {
-    this(in ParentT parent)
-    {
-        native = wl_proxy_marshal_flags(parent.native, op_code, &i, 
-                                        wl_proxy_get_version(parent.native), 0, null);
-    }
     ~this()
     {
         if (native)
@@ -110,6 +116,7 @@ mixin template Proxy!(ParentT, alias i, alias op_create, alias op_destroy)
 							    WL_MARSHAL_FLAG_DESTROY);
     }
     package Wl_proxy* native;
+    @disable this(this);
 }
 
 extern (C) nothrow {
@@ -143,7 +150,7 @@ extern (C) nothrow {
     }
 
     void wl_proxy_destroy(Wl_proxy*);
-    int wl_proxy_add_listener(Wl_proxy*, Callback*, void* /*data*/);
+    int wl_proxy_add_listener(Wl_proxy*, const(Callback)*, void* /*data*/);
     Wl_proxy* wl_proxy_marshal_constructor(Wl_proxy*, uint opcode,
                                            const Wl_interface* iface, ...);
     Wl_proxy* wl_proxy_marshal_flags(Wl_proxy*, uint opcode,
@@ -159,7 +166,7 @@ extern (C) nothrow {
     //extern const Wl_interface wl_surface_interface;
     //extern const Wl_interface xdg_popup_interface;
     //extern const Wl_interface wl_output_interface;
-    extern const Wl_interface wl_seat_interface;
+    extern immutable Wl_interface wl_seat_interface;
     
 
     struct Wl_callback_listener {
