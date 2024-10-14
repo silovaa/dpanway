@@ -8,6 +8,13 @@ struct WlCompositor
 
     private static extern immutable Wl_interface wl_compositor_interface;
     mixin GlobalProxy!(wl_compositor_interface);
+
+    WlSurface create_surface() const nothrow
+    {
+        return {native: wl_proxy_marshal_flags(this.native, CREATE_SURFACE, 
+                                        &wl_surface_interface, 
+                                        wl_proxy_get_version(this.native), 0, null)};
+    }
 }
 
 struct WlSurface
@@ -24,13 +31,12 @@ struct WlSurface
     enum uint  DAMAGE_BUFFER = 9;
     enum uint  OFFSET = 10;
 
-    this(in ref WlCompositor parent)
-    {
-        
-        native = wl_proxy_marshal_flags(parent.native, WlCompositor.CREATE_SURFACE, 
-                                        &wl_surface_interface, 
-                                        wl_proxy_get_version(parent.native), 0, null);
-    }
+    // this(in ref WlCompositor parent)
+    // {
+    //     native = wl_proxy_marshal_flags(parent.native, WlCompositor.CREATE_SURFACE, 
+    //                                     &wl_surface_interface, 
+    //                                     wl_proxy_get_version(parent.native), 0, null);
+    // }
 
     mixin GlobalProxyExt!(wl_surface_interface, DESTROY);
     //mixin ListenerProxy!WlSufaceListener;
@@ -40,54 +46,19 @@ struct WlSurface
         wl_proxy_marshal_flags(native, COMMIT, null, 
                              wl_proxy_get_version(native), 0);
     }
-        
+
+    alias FrameCb = void delegate(uint time) nothrow;
+    @property void onFrame(FrameCb frame_cb) nothrow
+    {
+        m_onFrame = WlOneCallback(frame_cb);
+        requestFrame();
+    }
+    void requestFrame() const 
+    { m_onFrame.request(native, FRAME); }
+
+    privare WlOneCallback m_onFrame;
 }
 
 extern(C) {
     extern immutable Wl_interface wl_surface_interface;
-}
-
-struct WlCallback
-{
-    this(in ref WlSurface surface, Listener lst) 
-    {
-        native = wl_proxy_marshal_flags(surface.native, WlSurface.FRAME, 
-                                        &wl_callback_interface,
-                                        wl_proxy_get_version(surface.native),
-										0, null);
-
-		listener = lst;
-    }
-
-    ~this()
-    {if (native) wl_proxy_destroy(native);}
-
-    package Wl_proxy* native;
-    @disable this(this);
-
-    interface Listener
-    {
-        void onCallbackDone(uint data) nothrow;
-    }
-
-    mixin ListenerProxyExt!(Listener, StructCallbacs);
-
-    private extern(C) {
-		struct StructCallbacs
-        {
-			auto cb1 = &frame_cb;
-		}
-        static void frame_cb(void* data,
-                Wl_proxy* wl_callback, uint callback_data)
-        {
-            auto self = cast(Listener*) data;
-            self.onCallbackDone(callback_data);
-
-        }
-    }
-    
-}
-
-extern(C) {
-    extern immutable Wl_interface wl_callback_interface;
 }

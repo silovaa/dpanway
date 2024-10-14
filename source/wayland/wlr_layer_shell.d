@@ -38,6 +38,18 @@ struct WlrLayerShell
 	enum uint DESTROY = 1;
 
     mixin GlobalProxyExt!(LayerShellInterface, DESTROY);
+
+	WlrLayerSurface create_surface( in ref WlSurface 	surface, 
+		 							in ref WlOutput 	output, 
+									in Layer 		layer = Layer.TOP)
+	{
+		return {native: wl_proxy_marshal_flags(native, WlrLayerShell.GET_LAYER_SURFACE, 
+                                    &wl_ifaces[1], 
+                                    wl_proxy_get_version(native), 0, null, 
+                                    surface.native, 
+                                    output.native, 
+                                    layer, cast(const(char)*)"LayerSurface")};
+	}
 }
 
 struct WlrLayerSurface
@@ -53,27 +65,26 @@ struct WlrLayerSurface
 	enum uint SET_LAYER = 8;
 	enum uint SET_EXCLUSIVE_EDGE = 9;
 
-	this(in ref WlrLayerShell layer_shell, 
-		 in ref WlSurface 	surface, 
-		 in ref WlOutput 	output, 
-		 in Layer 		layer = Layer.TOP)
-	{
-		native = wl_proxy_marshal_flags(layer_shell.native, WlrLayerShell.GET_LAYER_SURFACE, 
-                                    &wl_ifaces[1], 
-                                    wl_proxy_get_version(layer_shell.native), 0, null, 
-                                    surface.native, 
-                                    output.native, 
-                                    layer, cast(const(char)*)"LayerSurface");
+	// this(in ref WlrLayerShell layer_shell, 
+	// 	 in ref WlSurface 	surface, 
+	// 	 in ref WlOutput 	output, 
+	// 	 in Layer 		layer = Layer.TOP)
+	// {
+	// 	native = wl_proxy_marshal_flags(layer_shell.native, WlrLayerShell.GET_LAYER_SURFACE, 
+    //                                 &wl_ifaces[1], 
+    //                                 wl_proxy_get_version(layer_shell.native), 0, null, 
+    //                                 surface.native, 
+    //                                 output.native, 
+    //                                 layer, cast(const(char)*)"LayerSurface");
 		
-	}
+	// }
 
 	mixin Proxy!(DESTROY);
 
 	interface Listener 
 	{
-	private:
-		void onLayerSurfaceConfig(uint width, uint height) nothrow;
-		void onLayerSurfaceClosed() nothrow;
+		void onConfig(uint width, uint height) nothrow;
+		void onClosed() nothrow;
 	}
 
 	mixin ListenerProxyExt!(Listener, StructCallbacs);
@@ -139,7 +150,6 @@ class LayerWindow: WlrLayerSurface.Listener, WlCallback.Listener
         collectException(Runtime.terminate());
         exit(1);
     	}
-		
 	}
 
 protected:
@@ -153,8 +163,8 @@ public:
                       in ref WlOutput output) nothrow
     {
         try {
-            m_surface = WlSurface(compositor);
-            m_layer_surface = WlrLayerSurface(layer_shell, m_surface, 
+            m_surface = compositor.create_surface();
+            m_layer_surface = layer_shell.create_surface(m_surface, 
                                               output, m_layer);
             m_layer_surface.listener = this;
             m_layer_surface.setSize(m_width, m_height);
@@ -185,7 +195,7 @@ private:
         queryDraw();
 	}
 
-    void onLayerSurfaceConfig(uint width, uint height) nothrow
+    void onConfig(uint width, uint height) nothrow
     {
         configure(m_surface, width, height);
 
@@ -193,7 +203,7 @@ private:
 		queryDraw();
     }
 
-    void onLayerSurfaceClosed() nothrow
+    void onClosed() nothrow
     {
 		try
     	{

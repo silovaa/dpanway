@@ -54,6 +54,8 @@ interface WlListener(T, StructFunc)
     }
 }
 
+package:
+
 // mixin template ListenerProxy(ListenerT)
 // {
 //     @property void listener(ListenerT lst)
@@ -109,7 +111,7 @@ mixin template GlobalProxy(alias i)
 
 mixin template GlobalProxyExt(alias i, alias op_destroy)
 {
-     static @property immutable(WlInterface) iface() nothrow
+    static @property immutable(WlInterface) iface() nothrow
     {
         static if(is(typeof(i) == immutable(WlInterface)))
             return i;
@@ -152,6 +154,53 @@ mixin template Proxy(alias op_destroy)
     }
     package Wl_proxy* native;
     @disable this(this);
+}
+
+/**
+* Объект используется там где он уничтожается после вызова m_done
+* например onFrame в WlSurface
+**/
+struct WlOneCallback
+{
+    alias DoneDt = void delegate(uint);
+    this(DoneDt done) nothrow
+    { m_done = done; }
+
+    void request(Wl_proxy* own, uint opCode)
+    {
+        assert(m_done);
+
+        wl_cb = wl_proxy_marshal_flags(own, opCode, 
+                                        &wl_callback_interface,
+                                        wl_proxy_get_version(own),
+										0, null);
+        enforce(wl_proxy_add_listener(wl_cb, 
+                                    cast(Callback*) &m_callbaks, 
+                                    cast(void*) &this) >= 0,
+                "wl_callback request failed");
+    }
+
+    private __gshared auto m_callbacks = StructCallbacs();
+    private DoneDt m_done;
+
+    private extern(C) {
+		struct StructCallbacs
+        {
+			auto cb1 = &done_cb;
+		}
+        static void frame_cb(void* data,
+                Wl_proxy* wl_callback, uint callback_data)
+        {
+            auto self = cast(WlOneCallback*) data;
+            self.m_done(callback_data);
+
+        }
+    }
+    
+}
+
+extern(C) {
+    extern immutable Wl_interface wl_callback_interface;
 }
 
 extern (C) nothrow {

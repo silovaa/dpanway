@@ -1,12 +1,9 @@
 module wayland.display;
 
-//import core.sys.posix.poll: poll, pollfd, POLLIN, POLLOUT;
 import std.exception;
 import std.string;
-//import std.stdio;
 
 import wayland.core;
-//import wayland.layer_shell;
 
 struct WlDisplay
 {
@@ -70,32 +67,19 @@ struct WlRegistry
 
     package Wl_proxy* native;
 
+    void bind(T)(ref T proxy, const(char)* name, 
+                uint name_id, uint ver) const nothrow
+    {
+        proxy.native = wl_proxy_marshal_constructor(native, 
+                                            WL_REGISTRY_BIND, 
+                                            proxy.iface.native, name_id, 
+                                            name, ver, null);
+    }
+
     alias GlobalDt = void delegate(uint name, const(char)* iface, 
                                         uint ver) nothrow;
 
     alias GlobalRemoveDt = void delegate(uint name) nothrow;
-
-    bool bind(T)(ref T proxy, 
-                const(char)* name, 
-                uint name_id, uint ver) const nothrow
-    {
-        auto iface = proxy.iface;
-        if (iface.isSame(name)) {
-            uint _version;
-            if (ver < iface.p_version){
-                _version = ver;
-                //To do сигнал версия протокола системы ниже чем наша
-            }
-            else _version = iface.p_version;
-            proxy.native = wl_proxy_marshal_constructor(native, 
-                                            WL_REGISTRY_BIND, 
-                                            iface.native, name_id, 
-                                            name, _version, null);
-            return true;
-        }
-
-        return false;
-    }
 
     @property void onGlobal(GlobalDt dt)
     { m_onGlobal = dt; }
@@ -103,12 +87,11 @@ struct WlRegistry
     @property void onGlobalRemove(GlobalRemoveDt dt)
     { m_onGlobalRemove = dt; }
 
-    private:
-    GlobalDt m_onGlobal;
-    GlobalRemoveDt m_onGlobalRemove;
-    __gshared auto m_callbacks = StructCallbacs();
+    private GlobalDt m_onGlobal;
+    private GlobalRemoveDt m_onGlobalRemove;
+    private __gshared auto m_callbacks = StructCallbacs();
 
-    extern(C) nothrow {
+    private extern(C) nothrow {
         struct StructCallbacs
         {
             auto global_cb = &handle_global;
