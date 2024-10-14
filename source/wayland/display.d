@@ -38,42 +38,29 @@ extern(C) nothrow {
     int wl_display_roundtrip(Wl_display*);
     Wl_display* wl_display_connect(const(char)*);
     void wl_display_disconnect(Wl_display*);
+}
 
+private extern(C) {
     extern immutable Wl_interface wl_registry_interface;
-
+    extern immutable Wl_interface wl_shm_interface;
+    extern immutable Wl_interface wl_output_interface;
 }
 
-class WlRegistryListener: WlListener!(WlRegistry, WlRegistry.StructCallbacs)
-{
-    alias GlobalCb = void delegate(ref WlRegistry, uint name, 
-                    const(char)* iface, uint ver) nothrow;
-
-    alias GlobalRemoveCb = void delegate(ref WlRegistry, uint name) nothrow;
-    
-    this(GlobalCb g_cb, GlobalRemoveCb grm_cb = null)
-    {
-        // super([
-        //     &handle_global, 
-        //     &handle_global_rem
-        // ]);
-
-        global = g_cb;
-        global_remove = grm_cb;
-    }
-
-    GlobalCb global;
-    GlobalRemoveCb global_remove;
-}
 struct WlRegistry
 {
-//static extern immutable Wl_interface wl_registry_interface;
+    enum uint WL_REGISTRY_BIND = 0;
+
     this(in ref WlDisplay dpy)
     {
         native = enforce(wl_proxy_marshal_constructor(
                                 cast(Wl_proxy*) dpy.m_native,
                                 WlDisplay.GET_REGISTRY, 
                                 &wl_registry_interface, null),
-                            "create registry failed");
+                        "create registry failed");
+        enforce(wl_proxy_add_listener(native, 
+                                    cast(Callback*) &m_callbacks, 
+                                    cast(void*) &this) >= 0,
+                "add listener failed");
     }
 
     ~this()
@@ -81,13 +68,16 @@ struct WlRegistry
 
     @disable this(this);
 
-    @property void listener(WlRegistryListener lst)
-    {
-        m_listener = lst;
-        m_listener.create(this);
-    }
+    package Wl_proxy* native;
 
-    bool bind(T)(ref T proxy, const(char)* name, uint name_id, uint ver) nothrow
+    alias GlobalDt = void delegate(uint name, const(char)* iface, 
+                                        uint ver) nothrow;
+
+    alias GlobalRemoveDt = void delegate(uint name) nothrow;
+
+    bool bind(T)(ref T proxy, 
+                const(char)* name, 
+                uint name_id, uint ver) const nothrow
     {
         auto iface = proxy.iface;
         if (iface.isSame(name)) {
@@ -107,69 +97,69 @@ struct WlRegistry
         return false;
     }
 
-    package Wl_proxy* native;
+    @property void onGlobal(GlobalDt dt)
+    { m_onGlobal = dt; }
 
-    private {
-        enum uint WL_REGISTRY_BIND = 0;
+    @property void onGlobalRemove(GlobalRemoveDt dt)
+    { m_onGlobalRemove = dt; }
 
-        WlRegistryListener m_listener;
+    private:
+    GlobalDt m_onGlobal;
+    GlobalRemoveDt m_onGlobalRemove;
+    __gshared auto m_callbacks = StructCallbacs();
 
-        extern (C) {
-            struct StructCallbacs
-            {
-                auto global_cb = &handle_global;
-                auto global_rem_cb = &handle_global_rem;
-            }
-            static void handle_global(void* data, Wl_proxy* registry,
-                                uint name, const(char)* iface, uint ver) 
-            {
-                auto self = cast(WlRegistry*) data;
-                //global не должен быть пустым
-                assert(self.m_listener.global);
-                self.m_listener.global(*self, name, iface, ver);
-                
-            }
-            static void handle_global_rem(void* data, Wl_proxy* registry,
-                                uint name) 
-            {
-                auto self = cast(WlRegistry*) data;
-                if (self.m_listener.global_remove)
-                    self.m_listener.global_remove(*self, name);
-            }
+    extern(C) nothrow {
+        struct StructCallbacs
+        {
+            auto global_cb = &handle_global;
+            auto global_rem_cb = &handle_global_rem;
         }
+        static void handle_global(void* data, Wl_proxy* registry,
+                                uint name, const(char)* iface, uint ver) 
+        {
+            auto self = cast(WlRegistry*) data;
+            //global не должен быть пустым
+            assert(self.m_onGlobal);
+            self.m_onGlobal(name, iface, ver);         
+        }
+        static void handle_global_rem(void* data, Wl_proxy* registry,
+                                    uint name) 
+        {
+            auto self = cast(WlRegistry*) data;
+            if (self.m_onGlobalRemove)
+                self.m_onGlobalRemove(name);
+        } 
     }
 }
 
 struct WlShm
 {
-    private static extern immutable Wl_interface wl_shm_interface;
     mixin GlobalProxy!(wl_shm_interface);
 }
 
-class WlOutputListener: WlListener!(WlOutput, WlOutput.StructCallbacs)
-{
-    void delegate(ref WlOutput,
-                    int x, int y,
-                    int physical_width,
-                    int physical_height,
-                    int subpixel,
-                    const(char)[] make,
-                    const(char)[] model,
-                    int transform    ) nothrow geometry;
-    void delegate(ref WlOutput,
-                    uint flags,
-		            int width,
-		            int height,
-		            int refresh) nothrow mode; 
-    void delegate(ref WlOutput) nothrow done;  
-    void delegate(ref WlOutput, int factor) nothrow scale;
-    void delegate(ref WlOutput, const(char)[] name) nothrow name;
-    void delegate(ref WlOutput, const(char)[] desc) nothrow description;
-}
 struct WlOutput
 {
     mixin GlobalProxy!(wl_output_interface);
-    mixin ListenerProxy!WlOutputListener;
+
+    interface Listener
+    {
+        void onOutputGeometry(int x, int y,
+                            int physical_width,
+                            int physical_height,
+                            int subpixel,
+                            const(char)[] make,
+                            const(char)[] model,
+                            int transform    ) nothrow;
+        void onOutputMode(uint flags,
+		                int width, int height,
+		                int refresh) nothrow;
+        void onOutputDone() nothrow;
+        void onOutputScale(int factor) nothrow;
+        void onOutputName(const(char)[] name) nothrow;
+        void onOutputDescription(const(char)[] desc) nothrow;
+
+    }
+    mixin ListenerProxyExt!(Listener, StructCallbacs);
 
     private extern(C) {
         struct StructCallbacs
@@ -187,48 +177,38 @@ struct WlOutput
 		            int transform) 
         {
 
-            auto self = cast(WlOutput*) data;
-            if (self.m_listener.geometry)
-                self.m_listener.geometry(*self, x, y, phy_width, phy_height, 
-                                        subpixel, fromStringz(make), fromStringz(model), transform);
+            auto self = cast(Listener*) data;
+            self.onOutputGeometry(x, y, phy_width, phy_height, 
+                                subpixel, fromStringz(make), fromStringz(model), transform);
         }
         static void handle_mode(void *data, Wl_proxy*,
 		                    uint flags, int width, int height,
 		                    int refresh)
         {
-            auto self = cast(WlOutput*) data;
-            if (self.m_listener.mode)
-                self.m_listener.mode(*self, flags, width, height, refresh);
+            auto self = cast(Listener*) data;
+            self.onOutputMode(flags, width, height, refresh);
         }
         static void handle_done(void *data, Wl_proxy*)
         {
-            auto self = cast(WlOutput*) data;
-            if (self.m_listener.done)
-                self.m_listener.done(*self);
+            auto self = cast(Listener*) data;
+            self.onOutputDone();
         }
         static void handle_scale(void *data, Wl_proxy*, int factor) 
         {
-            auto self = cast(WlOutput*) data;
-            if (self.m_listener.scale)
-                self.m_listener.scale(*self, factor);
+            auto self = cast(Listener*) data;
+            self.onOutputScale(factor);
         }
         static void handle_name(void *data, Wl_proxy*, const(char)* name) 
         {
-            auto self = cast(WlOutput*) data;
-            if (self.m_listener.name)
-                self.m_listener.name(*self, fromStringz(name));
+            auto self = cast(Listener*) data;
+            self.onOutputName(fromStringz(name));
         }
         static void handle_description(void *data, Wl_proxy*, const(char)* desc) 
         {
-            auto self = cast(WlOutput*) data;
-            if (self.m_listener.description)
-                self.m_listener.description(*self, fromStringz(desc));
+            auto self = cast(Listener*) data;
+            self.onOutputDescription(fromStringz(desc));
         }
     }
-}
-
-extern(C) {
-    extern immutable Wl_interface wl_output_interface;
 }
 
 // enum EventT

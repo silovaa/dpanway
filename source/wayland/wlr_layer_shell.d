@@ -3,7 +3,7 @@ module wayland.wlr_layer_shell;
 import wayland.core;
 import wayland.compositor;
 //import wayland.output;
-import wayland.display;
+import wayland.display: WlOutput;
 import wayland.xdg_shell_protocol;
 
 enum Layer {
@@ -40,24 +40,6 @@ struct WlrLayerShell
     mixin GlobalProxyExt!(LayerShellInterface, DESTROY);
 }
 
-class WlrLayerSufaceListener: WlListener!(WlrLayerSurface, WlrLayerSurface.StructCallbacs)
-{
-    alias ConfigureCb = void delegate (uint width, uint height) nothrow;
-    alias ClosedCb    = void delegate () nothrow;
-
-    // this(ConfigureCb configure, ClosedCb closed)
-    // {
-	// 	super([
-	// 		&config_cb, &close_cb,
-	// 	]);
-
-	// 	this.configure = configure;
-	// 	this.closed = closed;
-    // }
-
-	ConfigureCb configure;
-	ClosedCb closed;
-}
 struct WlrLayerSurface
 {
 	enum uint SET_SIZE = 0;
@@ -71,10 +53,10 @@ struct WlrLayerSurface
 	enum uint SET_LAYER = 8;
 	enum uint SET_EXCLUSIVE_EDGE = 9;
 
-	this(ref WlrLayerShell layer_shell, 
-		in WlSurface 	surface, 
-		in WlOutput 	output, 
-		in Layer 		layer = Layer.TOP)
+	this(in ref WlrLayerShell layer_shell, 
+		 in ref WlSurface 	surface, 
+		 in ref WlOutput 	output, 
+		 in Layer 		layer = Layer.TOP)
 	{
 		native = wl_proxy_marshal_flags(layer_shell.native, WlrLayerShell.GET_LAYER_SURFACE, 
                                     &wl_ifaces[1], 
@@ -82,18 +64,27 @@ struct WlrLayerSurface
                                     surface.native, 
                                     output.native, 
                                     layer, cast(const(char)*)"LayerSurface");
+		
 	}
 
 	mixin Proxy!(DESTROY);
-	mixin ListenerProxy!WlrLayerSufaceListener;
 
-	void setSize(uint w, uint h) nothrow
+	interface Listener 
+	{
+	private:
+		void onLayerSurfaceConfig(uint width, uint height) nothrow;
+		void onLayerSurfaceClosed() nothrow;
+	}
+
+	mixin ListenerProxyExt!(Listener, StructCallbacs);
+
+	void setSize(uint w, uint h) 
 	{
 		wl_proxy_marshal_flags(native, SET_SIZE, null, 
                             wl_proxy_get_version(native), 0, w, h);
 	}
 
-	void setAnchor(Anchor a) nothrow
+	void setAnchor(Anchor a) 
 	{
 		wl_proxy_marshal_flags(native, SET_ANCHOR, null, 
                                wl_proxy_get_version(native), 0, a);
@@ -108,25 +99,130 @@ struct WlrLayerSurface
         static void config_cb(void *data, Wl_proxy* layer_surface,
 			  		uint serial, uint width, uint height)
         {
-            auto self = cast(WlrLayerSurface*) data;
-			if (self.m_listener.configure)
-            	self.m_listener.configure(width, height);
+            auto self = cast(Listener*) data;
+            self.onLayerSurfaceConfig(width, height);
 
             wl_proxy_marshal_flags(layer_surface, WlrLayerSurface.ACK_CONFIGURE, 
                                 null, wl_proxy_get_version(layer_surface), 
                                 0, serial);
         }
-
-		void close_cb(void *data, Wl_proxy* layer_surface)
+		static void close_cb(void *data, Wl_proxy* layer_surface)
     	{
-			auto self = cast(WlrLayerSurface*) data;
-			if (self.m_listener.closed)
-            	self.m_listener.closed();
+			auto self = cast(Listener*) data;
+			self.onLayerSurfaceClosed();
 		}
-    
     }
 }
 
+class LayerWindow: WlrLayerSurface.Listener, WlCallback.Listener
+{
+    final void queryDraw() nothrow
+	{
+		try
+    	{
+			m_frame = WlCallback(m_surface, this);
+        	m_surface.commit();
+    	}
+    	catch(Exception ex)
+    	{
+        	import std.exception : collectException;
+        	import std.stdio : stderr;
+        	collectException(stderr.writeln("wayland-d: error in listener stub: "~ex.msg));
+    	}
+    	catch(Throwable err)
+    	{
+        import core.runtime : Runtime;
+        import core.stdc.stdlib : exit;
+        import std.exception : collectException;
+        import std.stdio : stderr;
+        collectException(stderr.writeln("wayland-d: aborting due to error in listener stub: "~err.msg));
+        collectException(Runtime.terminate());
+        exit(1);
+    	}
+		
+	}
+
+protected:
+    uint m_width, m_height;
+    Layer m_layer = Layer.TOP;
+    Anchor m_anchor = Anchor.TOP;
+
+public:
+    final bool make_surface(in ref WlCompositor compositor, 
+                      in ref WlrLayerShell layer_shell, 
+                      in ref WlOutput output) nothrow
+    {
+        try {
+            m_surface = WlSurface(compositor);
+            m_layer_surface = WlrLayerSurface(layer_shell, m_surface, 
+                                              output, m_layer);
+            m_layer_surface.listener = this;
+            m_layer_surface.setSize(m_width, m_height);
+            m_layer_surface.setAnchor(m_anchor);
+            m_surface.commit();
+        }
+        catch(Exception e) {
+            //writeln(e.msg); To do вывод в лог
+            return false;
+        }
+
+        return true;
+    }
+
+private:
+    WlSurface m_surface;
+    WlrLayerSurface m_layer_surface;
+    WlCallback m_frame;
+	
+	abstract void prepare(Wl_display*);
+    abstract void configure(in ref WlSurface surface, uint w, uint h) nothrow;
+    abstract void draw() nothrow;
+ 	abstract void destroy();
+
+    void onCallbackDone(uint callback_data) nothrow 
+	{
+		draw();
+        queryDraw();
+	}
+
+    void onLayerSurfaceConfig(uint width, uint height) nothrow
+    {
+        configure(m_surface, width, height);
+
+        draw(); // --???
+		queryDraw();
+    }
+
+    void onLayerSurfaceClosed() nothrow
+    {
+		try
+    	{
+			destroy();
+
+			m_layer_surface = WlrLayerSurface();
+			m_frame = WlCallback();
+
+        	m_surface.commit();
+			m_surface = WlSurface();
+    	}
+    	catch(Exception ex)
+    	{
+        	import std.exception : collectException;
+        	import std.stdio : stderr;
+        	collectException(stderr.writeln("wayland-d: error in listener stub: "~ex.msg));
+    	}
+    	catch(Throwable err)
+    	{
+        import core.runtime : Runtime;
+        import core.stdc.stdlib : exit;
+        import std.exception : collectException;
+        import std.stdio : stderr;
+        collectException(stderr.writeln("wayland-d: aborting due to error in listener stub: "~err.msg));
+        collectException(Runtime.terminate());
+        exit(1);
+    	}
+    }
+}
 
 immutable WlInterface LayerShellInterface;
 immutable WlInterface LayerShellSurfaceInterface;

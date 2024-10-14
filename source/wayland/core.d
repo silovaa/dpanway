@@ -37,10 +37,10 @@ bool wlIfaceEquals(immutable(WlInterface) a, immutable(WlInterface) b)
     return a is b || strcmp(a.m_native.name, b.m_native.name) == 0;
 }
 
-class WlListener(T, StructFunc)
+interface WlListener(T, StructFunc)
 {
     //private const(Callback)[] m_callbaks;
-    private immutable StructFunc m_callbaks;
+    private static immutable StructFunc m_callbaks;
 
     // this(const(Callback[]) cbs)
     // {m_callbaks = cbs;}
@@ -54,24 +54,50 @@ class WlListener(T, StructFunc)
     }
 }
 
-mixin template ListenerProxy(ListenerT)
+// mixin template ListenerProxy(ListenerT)
+// {
+//     @property void listener(ListenerT lst)
+//     {
+//         m_listener = lst;
+//         m_listener.create(this);
+//     }
+
+//     private ListenerT m_listener;
+// }
+
+mixin template ListenerProxyExt(ListenerT, StructFunc)
 {
+    import std.exception;
+
     @property void listener(ListenerT lst)
     {
         m_listener = lst;
-        m_listener.create(this);
+        enforce(wl_proxy_add_listener(native, 
+                                    cast(Callback*) &m_callbaks, 
+                                    cast(void*) m_listener) >= 0,
+                "add listener failed");
     }
 
     private ListenerT m_listener;
+    private __gshared StructFunc m_callbaks;
 }
 
 mixin template GlobalProxy(alias i)
 {
-    static @property immutable(WlInterface) iface()
+    static @property immutable(WlInterface) iface() nothrow
     {
         static auto s_iface = new immutable WlInterface(&i);
         return s_iface;
-    } 
+    }
+
+    static bool isSame(const(char)* str) nothrow
+    {
+        import core.stdc.string : strcmp;
+        return strcmp(iface.native.name, str) == 0;
+    }
+
+    @property bool isInit() const nothrow
+    { return native != null; }
 
     package Wl_proxy* native;
 
@@ -83,7 +109,7 @@ mixin template GlobalProxy(alias i)
 
 mixin template GlobalProxyExt(alias i, alias op_destroy)
 {
-     static @property immutable(WlInterface) iface()
+     static @property immutable(WlInterface) iface() nothrow
     {
         static if(is(typeof(i) == immutable(WlInterface)))
             return i;
@@ -92,6 +118,15 @@ mixin template GlobalProxyExt(alias i, alias op_destroy)
             return s_iface;
         }
     } 
+
+    static bool isSame(const(char)* str) nothrow
+    {
+        import core.stdc.string : strcmp;
+        return strcmp(iface.native.name, str) == 0;
+    }
+
+    @property bool isInit() const nothrow
+    { return native != null; }
 
     package Wl_proxy* native;
 
@@ -151,18 +186,18 @@ extern (C) nothrow {
 
     void wl_proxy_destroy(Wl_proxy*);
     int wl_proxy_add_listener(Wl_proxy*, const(Callback)*, void* /*data*/);
-    Wl_proxy* wl_proxy_marshal_constructor(Wl_proxy*, uint opcode,
+    Wl_proxy* wl_proxy_marshal_constructor(const(Wl_proxy)*, uint opcode,
                                            const Wl_interface* iface, ...);
-    Wl_proxy* wl_proxy_marshal_flags(Wl_proxy*, uint opcode,
+    Wl_proxy* wl_proxy_marshal_flags(const(Wl_proxy)*, uint opcode,
                                     const Wl_interface* iface,
                                     uint ver, uint flags, ...);
-    uint wl_proxy_get_version(Wl_proxy*);
+    uint wl_proxy_get_version(const(Wl_proxy)*);
 
     enum uint WL_MARSHAL_FLAG_DESTROY = 1 << 0;
 
     enum uint WL_COMPOSITOR_CREATE_REGION = 1;
 
-    extern const Wl_interface wl_callback_interface;
+    //extern const Wl_interface wl_callback_interface;
     //extern const Wl_interface wl_surface_interface;
     //extern const Wl_interface xdg_popup_interface;
     //extern const Wl_interface wl_output_interface;
