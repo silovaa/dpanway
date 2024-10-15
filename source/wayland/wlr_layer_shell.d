@@ -43,12 +43,14 @@ struct WlrLayerShell
 		 							in ref WlOutput 	output, 
 									in Layer 		layer = Layer.TOP)
 	{
-		return {native: wl_proxy_marshal_flags(native, WlrLayerShell.GET_LAYER_SURFACE, 
+		WlrLayerSurface res;
+		res.native = wl_proxy_marshal_flags(native, GET_LAYER_SURFACE, 
                                     &wl_ifaces[1], 
                                     wl_proxy_get_version(native), 0, null, 
                                     surface.native, 
                                     output.native, 
-                                    layer, cast(const(char)*)"LayerSurface")};
+                                    layer, cast(const(char)*)"LayerSurface");
+		return res;
 	}
 }
 
@@ -125,7 +127,7 @@ struct WlrLayerSurface
     }
 }
 
-class LayerWindow: WlrLayerSurface.Listener, WlCallback.Listener
+class LayerWindow: WlrLayerSurface.Listener
 {
     final void queryDraw() nothrow
 	{
@@ -158,6 +160,11 @@ protected:
     Anchor m_anchor = Anchor.TOP;
 
 public:
+	struct Config
+	{
+
+	}
+
     final bool make_surface(in ref WlCompositor compositor, 
                       in ref WlrLayerShell layer_shell, 
                       in ref WlOutput output) nothrow
@@ -182,7 +189,6 @@ public:
 private:
     WlSurface m_surface;
     WlrLayerSurface m_layer_surface;
-    WlCallback m_frame;
 	
 	abstract void prepare(Wl_display*);
     abstract void configure(in ref WlSurface surface, uint w, uint h) nothrow;

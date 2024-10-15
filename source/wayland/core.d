@@ -162,11 +162,12 @@ mixin template Proxy(alias op_destroy)
 **/
 struct WlOneCallback
 {
-    alias DoneDt = void delegate(uint);
-    this(DoneDt done) nothrow
-    { m_done = done; }
+    alias DoneDt = void delegate(uint) nothrow;
 
-    void request(Wl_proxy* own, uint opCode)
+    // this(DoneDt done) nothrow
+    // { m_done = done; }
+
+    void request(Wl_proxy* own, uint opCode) 
     {
         assert(m_done);
 

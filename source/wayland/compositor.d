@@ -11,9 +11,11 @@ struct WlCompositor
 
     WlSurface create_surface() const nothrow
     {
-        return {native: wl_proxy_marshal_flags(this.native, CREATE_SURFACE, 
+        WlSurface res;
+        res.native = wl_proxy_marshal_flags(this.native, CREATE_SURFACE, 
                                         &wl_surface_interface, 
-                                        wl_proxy_get_version(this.native), 0, null)};
+                                        wl_proxy_get_version(this.native), 0, null);
+        return res;
     }
 }
 
@@ -48,17 +50,17 @@ struct WlSurface
     }
 
     alias FrameCb = void delegate(uint time) nothrow;
-    @property void onFrame(FrameCb frame_cb) nothrow
+    @property void onFrame(FrameCb frame_cb) 
     {
-        m_onFrame = WlOneCallback(frame_cb);
+        m_onFrame.m_done = frame_cb;
         requestFrame();
     }
-    void requestFrame() const 
-    { m_onFrame.request(native, FRAME); }
+    void requestFrame()  
+    { m_onFrame.request(native, FRAME);}
 
-    privare WlOneCallback m_onFrame;
+    private WlOneCallback m_onFrame;
 }
 
-extern(C) {
+private extern(C) {
     extern immutable Wl_interface wl_surface_interface;
 }
