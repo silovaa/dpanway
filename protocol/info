@@ -1,0 +1,5 @@
+Порядок содания поверхностей
+1. wl_display
+2. wl_registry
+3. wl_display_roundtrip ждем отработку wl_registry_listener
+4. 
