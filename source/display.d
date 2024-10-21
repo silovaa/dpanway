@@ -4,17 +4,14 @@ import wayland.display;
 import wayland.compositor;
 import wayland.wlr_layer_shell_protocol;
 
-struct Bar
+class Widget
 {
     uint width;
     uint height;
     Layer layer;
     Anchor anchor;
 
-
-
 private:
-
     uint id_screen;
 }
 
@@ -27,16 +24,55 @@ Display default_display()
     return dpy;
 }
 
+enum EventT
+{
+    system,
+    wayland,
+    count
+}
+
 class Display
 {
-    Bar* addBar(uint num_screen)
+    void addWidget(uint num_screen, Widget widget)
     {
         
     }
 
     void run_loop()
     {
+        isRuning = true;
 
+    while (isRuning) {writeln("enter to loop");
+        
+        // Wayland requests can be generated while handling non-Wayland events.
+        // We need to flush these.
+        int ret = 0;
+        do {
+            ret = wl_display_dispatch_pending(display);
+            if (wl_display_flush(display) < 0) 
+                throw new Exception("failed to flush Wayland events");
+        } while (ret > 0);
+        if (ret < 0) 
+            throw new Exception("failed to dispatch pending Wayland events");    
+            
+        if (poll(fds.ptr, EventT.count, -1) > 0) {
+
+            // if (fds[EventT.system].revents & POLLIN) 
+			//     break;
+		    
+            if (fds[EventT.wayland].revents & POLLIN) {
+                ret = wl_display_dispatch(display);
+                if (ret < 0) 
+                    throw new Exception("failed to read Wayland events");    
+            }
+            if (fds[EventT.wayland].revents & POLLOUT) {
+                ret = wl_display_flush(display);
+                if (ret < 0) 
+                    throw new Exception("failed to flush Wayland events");
+            }
+        }
+        else throw new Exception("failed to poll(): ");
+     }
     }
 
 private:
@@ -45,7 +81,16 @@ private:
     WlCompositor compositor;
     WlShm shm;
     WlrLayerShell layer_shell;
-    WlOutput[] output;
+    WlOutput[] outputs;
+
+    struct Surface
+    {
+        Widget widget;
+        Wl_Surface base;
+        WlrLayerSurface layer;
+    }
+
+    Surface[] surfaces;
 
 //private:
     this()
