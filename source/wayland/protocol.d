@@ -1,4 +1,4 @@
-module wayland.display;
+module wayland.protocol;
 
 import std.exception;
 import std.string;

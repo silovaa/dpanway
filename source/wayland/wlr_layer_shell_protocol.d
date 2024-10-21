@@ -1,4 +1,4 @@
-module wayland.wlr_layer_shell;
+module wayland.wlr_layer_shell_protocol;
 
 import wayland.core;
 import wayland.compositor;
@@ -171,6 +171,9 @@ public:
     {
         try {
             m_surface = compositor.create_surface();
+
+			//To do create region
+
             m_layer_surface = layer_shell.create_surface(m_surface, 
                                               output, m_layer);
             m_layer_surface.listener = this;
