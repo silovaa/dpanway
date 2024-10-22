@@ -1,5 +1,8 @@
 module display;
 
+import std.stdio;
+import core.sys.posix.poll: poll, pollfd, POLLIN, POLLOUT;
+
 import wayland.display;
 import wayland.compositor;
 import wayland.wlr_layer_shell_protocol;
@@ -10,9 +13,6 @@ class Widget
     uint height;
     Layer layer;
     Anchor anchor;
-
-private:
-    uint id_screen;
 }
 
 Display default_display()
@@ -33,16 +33,28 @@ enum EventT
 
 class Display
 {
+    /**
+    * Привязывает виджет к экрану с заданным номером
+    * 0-й экран считаем основным. 
+    * To do сортировать экраны по локальным координатам 
+    * протокола xdg-output если он поддерживается композитором
+    **/
     void addWidget(uint num_screen, Widget widget)
     {
-        
+        //widget.m_id_screen = num_screen;
+
+        if (m_outputs.length >= num_screen){
+            m_outputs[num_screen].m_surfaces ~= Surface(widget);
+            m_outputs[num_screen].native.onDone = &create_all_surface;
+        }
+            
     }
 
     void run_loop()
     {
         isRuning = true;
 
-    while (isRuning) {writeln("enter to loop");
+        while (isRuning) {writeln("enter to loop");
         
         // Wayland requests can be generated while handling non-Wayland events.
         // We need to flush these.
@@ -72,25 +84,18 @@ class Display
             }
         }
         else throw new Exception("failed to poll(): ");
-     }
+        }
     }
 
 private:
     WlDisplay display; 
 
-    WlCompositor compositor;
+    WlCompositor m_compositor;
     WlShm shm;
-    WlrLayerShell layer_shell;
-    WlOutput[] outputs;
+    WlrLayerShell m_layer_shell;
+    Output[] m_outputs;
 
-    struct Surface
-    {
-        Widget widget;
-        Wl_Surface base;
-        WlrLayerSurface layer;
-    }
-
-    Surface[] surfaces;
+    bool isRuning = false;
 
 //private:
     this()
@@ -129,20 +134,71 @@ private:
             registry.bind(layer_shell, iface_str, name, ver);
         else
         if (WlOutput.isSame(iface_str)) {
-
-            //To do добавление нескольких мониторов
-            if (output.isInit) return;
-
+            
+            WlOutput output;
             registry.bind(output, iface_str, name, ver);
-       
-            // LayerWindow[] valid_surf;
-            // foreach (win; m_window_pool) 
-            //     if (win.make_surface(m_compositor, m_layer_shell, m_output))
-            //         valid_surf ~= win;
-
-            // m_window_pool =  valid_surf;
+            m_outputs ~= Output(output);
         }
     }
+
+    void create_all_surface()
+    {
+
+    }
 }
+
+private:
+
+    struct Output
+    {
+        this(WlOutput native)
+        {
+            this.native = native;
+            this.native.onName = &name_cb;
+            this.native.onDone = &done_cb;
+        }
+
+        WlOutput native;
+        string name;
+        uint scale;
+        Surface[] m_surfaces;
+    }
+
+    struct Surface
+    {
+        Widget m_widget;
+        WlSurface m_surface;
+        WlrLayerSurface m_layer_surface;
+        uint m_id_screen;
+
+        this(uin screen, Widget widget, in ref Display dpy)
+        {
+            m_widget = widget;
+            m_id_screen = screen;
+            m_surface = dpy.m_compositor.create_surface();
+
+            //To do create region
+
+            m_layer_surface = dpy.m_layer_shell.create_surface(m_surface, 
+                                                dpy.m_outputs[screen].native, widget.layer);
+
+            m_layer_surface.onConfig = &configure_cb;
+            m_layer_surface.onClosed = &closed_cb;
+
+            m_layer_surface.setSize(widget.width, widget.height);
+            m_layer_surface.setAnchor(widget.anchor);
+            m_surface.commit();
+        }
+
+        void configure_cb(uint w, uint h) nothrow
+        {
+            
+        }
+
+        void closed_cb() nothrow
+        {
+
+        }
+    }
 
     

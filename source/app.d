@@ -1,5 +1,3 @@
-import std.stdio;
-import core.sys.posix.poll: poll, pollfd, POLLIN, POLLOUT;
 
 import display;
 import window;
