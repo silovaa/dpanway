@@ -17,10 +17,28 @@ class Widget
 
 Display default_display()
 {
-    static Display dpy;
-    if (dpy is null)
-        dpy = new Display;
+    if (display.native is null){
+        display = WlDisplay(null);
+        registry = WlRegistry(wl_dpy);
+        registry.onGlobal = &global_cb;
 
+        if (wl_display_roundtrip(wl_dpy) < 0) 
+		    throw new Exception("wl_display_roundtrip() failed");
+
+	    if (!compositor.isInit) 
+		    throw new Exception("compositor doesn't support wl_compositor");
+		
+	    if (!shm.isInit)
+		    throw new Exception("compositor doesn't support wl_shm");
+	
+        if (!layer_shell.isInit) 
+            throw new Exception("compositor doesn't support zwlr_layer_shell_v1");
+
+        if (outputs is null)
+            throw new Exception("output not found");
+    }
+
+    static auto dpy = Display(false);
     return dpy;
 }
 
@@ -31,27 +49,26 @@ enum EventT
     count
 }
 
-class Display
+struct Display
 {
     /**
-    * Привязывает виджет к экрану с заданным номером
+    * Привязывает виджет к экрану с заданным номером,
     * 0-й экран считаем основным. 
     * To do сортировать экраны по локальным координатам 
     * протокола xdg-output если он поддерживается композитором
     **/
     void addWidget(uint num_screen, Widget widget)
     {
-        //widget.m_id_screen = num_screen;
-
         if (m_outputs.length >= num_screen){
-            m_outputs[num_screen].m_surfaces ~= Surface(widget);
-            m_outputs[num_screen].native.onDone = &create_all_surface;
-        }
-            
+            m_outputs[num_screen].m_surfaces ~= Surface(num_screen, widget);
+           
+        }       
     }
 
     void run_loop()
     {
+        if (isRuning) return;
+
         isRuning = true;
 
         while (isRuning) {writeln("enter to loop");
@@ -87,67 +104,26 @@ class Display
         }
     }
 
+    @disable this();
+
 private:
-    WlDisplay display; 
+    bool isRuning;
+    Surface[] m_surfaces;
 
-    WlCompositor m_compositor;
-    WlShm shm;
-    WlrLayerShell m_layer_shell;
-    Output[] m_outputs;
-
-    bool isRuning = false;
-
-//private:
-    this()
+    this(bool runing)
     {
-        display = WlDisplay(null);
-        registry = WlRegistry(display);
-        registry.onGlobal = &global_cb;
-
-        if (wl_display_roundtrip(display) < 0) 
-		    throw new Exception("wl_display_roundtrip() failed");
-
-	    if (!compositor.isInit) 
-		    throw new Exception("compositor doesn't support wl_compositor");
-		
-	    if (!shm.isInit)
-		    throw new Exception("compositor doesn't support wl_shm");
-	
-        if (!layer_shell.isInit) 
-            throw new Exception("compositor doesn't support zwlr_layer_shell_v1");
-
-        if (output is null)
-            throw new Exception("output not found");
-    }
-
-    WlRegistry registry;
-
-    void global_cb(uint name, const(char)* iface_str, uint ver) nothrow
-    {
-        if (compositor.isSame(iface_str)) 
-            registry.bind(compositor, iface_str, name, ver);
-        else
-        if (shm.isSame(iface_str))
-            registry.bind(shm, iface_str, name, ver);
-        else
-        if (layer_shell.isSame(iface_str))
-            registry.bind(layer_shell, iface_str, name, ver);
-        else
-        if (WlOutput.isSame(iface_str)) {
-            
-            WlOutput output;
-            registry.bind(output, iface_str, name, ver);
-            m_outputs ~= Output(output);
-        }
-    }
-
-    void create_all_surface()
-    {
-
+       isRuning = runing;
     }
 }
 
-private:
+private: 
+    WlCompositor compositor;
+    WlShm shm;
+    WlrLayerShell layer_shell;
+    Output[] outputs;
+
+    WlRegistry registry;
+    WlDisplay display;
 
     struct Output
     {
@@ -162,15 +138,24 @@ private:
         string name;
         uint scale;
         Surface[] m_surfaces;
+
+        void done_cb()
+        {
+            auto dpy = 
+            foreach(ref auto surf; m_surfaces){
+                surf.m_surface = compositor.create_surface();
+            }
+        }
     }
 
     struct Surface
     {
         Widget m_widget;
-        WlSurface m_surface;
-        WlrLayerSurface m_layer_surface;
         uint m_id_screen;
 
+        WlSurface m_surface;
+        WlrLayerSurface m_layer_surface;
+        
         this(uin screen, Widget widget, in ref Display dpy)
         {
             m_widget = widget;
@@ -198,6 +183,25 @@ private:
         void closed_cb() nothrow
         {
 
+        }
+    }
+
+    void global_cb(uint name, const(char)* iface_str, uint ver) nothrow
+    {
+        if (compositor.isSame(iface_str)) 
+            registry.bind(compositor, iface_str, name, ver);
+        else
+        if (shm.isSame(iface_str))
+            registry.bind(shm, iface_str, name, ver);
+        else
+        if (layer_shell.isSame(iface_str))
+            registry.bind(layer_shell, iface_str, name, ver);
+        else
+        if (WlOutput.isSame(iface_str)) {
+            
+            WlOutput output;
+            registry.bind(output, iface_str, name, ver);
+            m_outputs ~= Output(output);
         }
     }
 

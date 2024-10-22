@@ -10,21 +10,21 @@ struct WlDisplay
     enum uint SYNC = 0;
     enum uint GET_REGISTRY = 1;
 
-    alias m_native this;
+    alias native this;
     @disable this(this);
 
     this(const(char)* name)
     {
-        m_native = enforce(wl_display_connect(name), 
+        native = enforce(wl_display_connect(name), 
                             "failed to create display");
     }
 
     ~this()
     {
-        wl_display_disconnect(m_native);
+        wl_display_disconnect(native);
     }
 
-    Wl_display* m_native;
+    Wl_display* native;
 }
 
 extern(C) nothrow {
