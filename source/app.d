@@ -7,11 +7,16 @@ int main()
     try {
         auto dpy = default_display();
 
-        //Минимальная конфигурация виджета это высота и ширина
-        dpy.addWidget(0, new Panel(200, 400));
+        //Создаем панель на 0-м экране(основном), высотой 50, 
+        //привязанную к верхнему краю, шириной равной ширине экрана
+        auto view = new View(dpy.area(0).horizontal(50, Anchor.TOP));
+        view.onClose = (){ dpy.stop(); }
+
+        view.content(
+            Background(Color(0, 100, 125, 1))
+        )
         
         dpy.run_loop();
-
     }
     catch(Exception e) {
         writeln(e.msg);

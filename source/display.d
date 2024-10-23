@@ -7,10 +7,10 @@ import wayland.display;
 import wayland.compositor;
 import wayland.wlr_layer_shell_protocol;
 
-class Widget
+class ViewPlace
 {
-    uint width;
-    uint height;
+    uint width = 0;
+    uint height = 0;
     Layer layer;
     Anchor anchor;
 }
@@ -63,6 +63,16 @@ struct Display
             m_outputs[num_screen].m_surfaces ~= Surface(num_screen, widget);
            
         }       
+    }
+
+    ref Area area(uint screen)
+    {
+        
+    }
+
+    void stop()
+    {
+        isRuning = false;
     }
 
     void run_loop()
