@@ -60,7 +60,7 @@ struct Display
     void add(uint screen, Widget widget, SurfaceCfg cfg)
     {
         m_surfaces[screen] ~= Surface(screen, widget);
-        
+
         if (screen <= output.length){
             m_surfaces[screen][$ - 1].create(cfg, outputs[screen], this);
         }
@@ -212,6 +212,12 @@ private:
             WlOutput output;
             registry.bind(output, iface_str, name, ver);
             m_outputs ~= Output(output);
+
+            // если есть виджеты для добавляемого экрана, то их нужно реализовать
+            //Surface[]* surf = m_outputs.length - 1 in m_surfaces;
+            // if (surf !is null){
+
+            // }
         }
     }
 
