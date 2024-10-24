@@ -16,7 +16,7 @@ int main()
             Background(Color(0, 100, 125, 1))
         );
         
-        dpy.add(0, view).horizontal(50, Anchor.TOP);
+        dpy.add(0, view, Horizontal(50, Anchor.TOP));
         dpy.run_loop();
     }
     catch(Exception e) {
