@@ -57,17 +57,13 @@ struct Display
     * To do сортировать экраны по локальным координатам 
     * протокола xdg-output если он поддерживается композитором
     **/
-    void addWidget(uint num_screen, Widget widget)
+    void add(uint screen, Widget widget, SurfaceCfg cfg)
     {
-        if (m_outputs.length >= num_screen){
-            m_outputs[num_screen].m_surfaces ~= Surface(num_screen, widget);
-           
-        }       
-    }
-
-    ref Area area(uint screen)
-    {
+        m_surfaces[screen] ~= Surface(screen, widget);
         
+        if (screen <= output.length){
+            m_surfaces[screen][$ - 1].create(cfg, outputs[screen], this);
+        }
     }
 
     void stop()
@@ -118,7 +114,7 @@ struct Display
 
 private:
     bool isRuning;
-    Surface[] m_surfaces;
+    Surface[][uint] m_surfaces;
 
     this(bool runing)
     {
@@ -137,11 +133,12 @@ private:
 
     struct Output
     {
-        this(WlOutput native)
+        this(WlOutput native, Surface[] surfaces)
         {
             this.native = native;
-            this.native.onName = &name_cb;
-            this.native.onDone = &done_cb;
+            m_surfaces = surfaces;
+            //this.native.onName = &name_cb;
+            //this.native.onDone = &done_cb;
         }
 
         WlOutput native;
@@ -149,12 +146,11 @@ private:
         uint scale;
         Surface[] m_surfaces;
 
-        void done_cb()
-        {
-            auto dpy = 
-            foreach(ref auto surf; m_surfaces){
-                surf.m_surface = compositor.create_surface();
-            }
+        void map(in ref SurfaceCfg cfg, in ref Display dpy) {
+
+            if (m_surfaces is null) return;
+
+            m_surfaces[$ - 1].create(cfg, this, dpy);
         }
     }
 
@@ -170,12 +166,16 @@ private:
         {
             m_widget = widget;
             m_id_screen = screen;
+        }
+
+        void create(in ref SurfaceCfg cfg, in ref Output output, in ref Display dpy)
+        {
             m_surface = dpy.m_compositor.create_surface();
 
             //To do create region
 
             m_layer_surface = dpy.m_layer_shell.create_surface(m_surface, 
-                                                dpy.m_outputs[screen].native, widget.layer);
+                                                output.native, cfg.layer);
 
             m_layer_surface.onConfig = &configure_cb;
             m_layer_surface.onClosed = &closed_cb;
