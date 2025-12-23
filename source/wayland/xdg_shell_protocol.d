@@ -2,11 +2,11 @@ module wayland.xdg_shell_protocol;
 
 import wayland.core;
 
-immutable WlInterface XdgPopupInterface;
-immutable WlInterface XdgPositionerInterface;
-immutable WlInterface XdgSurfaceInterface;
-immutable WlInterface XdgToplevelInterface;
-immutable WlInterface XdgWmBaseInterface;
+immutable WlInterface хdgPopupInterface;
+immutable WlInterface хdgPositionerInterface;
+immutable WlInterface хdgSurfaceInterface;
+immutable WlInterface хdgToplevelInterface;
+immutable WlInterface хdgWmBaseInterface;
 
 private:
 immutable Wl_interface[] wl_ifaces;

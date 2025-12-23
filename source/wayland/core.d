@@ -33,6 +33,74 @@ bool wlIfaceEquals(immutable(WlInterface) a, immutable(WlInterface) b)
     return a is b || strcmp(a.m_native.name, b.m_native.name) == 0;
 }
 
+struct Proxy (T, int Destroy_code) 
+{
+    this(T* p) {m_ptr = p;}
+
+    @disable this(this);
+
+    ~this()
+    {
+        if (m_ptr)
+            cast(void) wl_proxy_marshal_flags(cast(wl_proxy*)m_ptr, Destroy_code, NULL, 
+                                   vers(), WL_MARSHAL_FLAG_DESTROY);
+    }
+
+    uint vers() const nothrow
+    {return wl_proxy_get_version(cast(wl_proxy*)m_ptr);}
+
+    void reset(T* ptr) 
+    {
+        if (m_ptr)
+            cast(void) wl_proxy_marshal_flags(cast(wl_proxy*)m_ptr, Destroy_code, NULL, 
+                                   vers(), WL_MARSHAL_FLAG_DESTROY);
+        m_ptr = ptr;
+    }
+
+    T* c_ptr() const 
+    {return m_ptr;}
+
+private:
+    T* m_ptr;
+}
+
+interface Global
+{
+    const(char)* name() const nothrow;
+    void bind(wl_registry *reg, uint name, uint vers) nothrow;
+    void destroy();
+} 
+
+struct Registry 
+{
+private:
+    static shared Global[] s_globals;
+    static extern(C) wl_registry* s_registry;
+
+public:
+    // Метод для заполнения реестра 
+    static void initialize(IService s1, IService s2, IService s3) {
+        if (s_registry) return; // Защита от повторной инициализации
+        
+        _services[0] = cast(shared) s1;
+        _services[1] = cast(shared) s2;
+        _services[2] = cast(shared) s3;
+        
+        _isInitialized = true;
+    }
+
+    // Доступ к сервису по индексу
+    static IService get(size_t index) {
+        assert(_isInitialized, "Реестр не инициализирован! Вызовите initialize() в main.");
+        return cast(IService) _services[index];
+    }
+}
+
+struct GlobalProxy
+{
+    
+}
+
 extern (C) nothrow {
 
     struct Wl_display;
