@@ -4,14 +4,14 @@ import core.stdc.string : strcmp;
 
 immutable class WlInterface
 {
-    private Wl_interface* m_native;
+    private wl_interface* m_native;
 
-    this(immutable Wl_interface* native)
+    this(immutable wl_interface* native)
     {
         m_native = native;
     }
 
-    @property immutable(Wl_interface)* native() nothrow
+    @property immutable(wl_interface)* native() nothrow
     {
         return m_native;
     }
@@ -71,52 +71,55 @@ interface Global
     void destroy();
 } 
 
-struct Registry 
+class GlobalProxy(T, alias wliface, int Destroy_code): Global
+    if (is(typeof(wliface) : wl_interface*))
 {
-private:
-    static shared Global[] s_globals;
-    static extern(C) wl_registry* s_registry;
+private: 
+    Proxy!(T, Destroy_code) m_proxy;
 
 public:
-    // Метод для заполнения реестра 
-    static void initialize(IService s1, IService s2, IService s3) {
-        if (s_registry) return; // Защита от повторной инициализации
-        
-        _services[0] = cast(shared) s1;
-        _services[1] = cast(shared) s2;
-        _services[2] = cast(shared) s3;
-        
-        _isInitialized = true;
+    this(){m_proxy(null);}
+
+    T* c_ptr() const 
+    {return m_proxy.c_ptr;}
+
+    const(char)* name() const nothrow
+    {
+        return wliface.name; 
     }
 
-    // Доступ к сервису по индексу
-    static IService get(size_t index) {
-        assert(_isInitialized, "Реестр не инициализирован! Вызовите initialize() в main.");
-        return cast(IService) _services[index];
+    void bind(wl_registry* reg, uint name, uint vers) nothrow
+    {
+        m_proxy.reset(cast(T*)wl_registry_bind(reg, name, &wliface, vers));
+    }
+
+    void destroy()
+    {
+        m_proxy.reset(null);
     }
 }
 
-struct GlobalProxy
-{
-    
-}
+alias surface_interface = wl_surface_interface;
+alias seat_interface = wl_seat_interface;
+
 
 extern (C) nothrow {
 
-    struct Wl_display;
-    struct Wl_proxy;
+    struct wl_display; 
+    struct wl_proxy;
+    struct wl_registry;
     alias Callback = extern (C) void function();
 
-    struct Wl_message {
+    struct wl_message {
         /** Message name */
         const char *name;
         /** Message signature */
         const char *signature;
         /** Object argument interfaces */
-        const Wl_interface **types;
+        const wl_interface **types; 
     }
 
-    struct Wl_interface{
+    struct wl_interface{
         /** Interface name */
         const(char)* name;
         /** Interface version */
@@ -124,21 +127,21 @@ extern (C) nothrow {
         /** Number of methods (requests) */
         int method_count;
         /** Method (request) signatures */
-        const(Wl_message)* methods;
+        const(wl_message)* methods;
         /** Number of events */
         int event_count;
         /** Event signatures */
-        const(Wl_message)* events;
+        const(wl_message)* events;
     }
 
-    void wl_proxy_destroy(Wl_proxy*);
-    int wl_proxy_add_listener(Wl_proxy*, Callback*, void* /*data*/);
-    Wl_proxy* wl_proxy_marshal_constructor(Wl_proxy*, uint opcode,
-                                           const Wl_interface* iface, ...);
-    Wl_proxy* wl_proxy_marshal_flags(Wl_proxy*, uint opcode,
-                                    const Wl_interface* iface,
+    void wl_proxy_destroy(wl_proxy*);
+    int wl_proxy_add_listener(wl_proxy*, Callback*, void* /*data*/);
+    wl_proxy* wl_proxy_marshal_constructor(wl_proxy*, uint opcode,
+                                           const wl_interface* iface, ...);
+    wl_proxy* wl_proxy_marshal_flags(wl_proxy*, uint opcode,
+                                    const wl_interface* iface,
                                     uint ver, uint flags, ...);
-    uint wl_proxy_get_version(Wl_proxy*);
+    uint wl_proxy_get_version(wl_proxy*);
 
     enum uint WL_MARSHAL_FLAG_DESTROY = 1 << 0;
 
@@ -157,11 +160,11 @@ extern (C) nothrow {
     enum uint  WL_SURFACE_DAMAGE_BUFFER = 9;
     enum uint  WL_SURFACE_OFFSET = 10;
 
-    extern const Wl_interface wl_callback_interface;
-    extern const Wl_interface wl_surface_interface;
-    //extern const Wl_interface xdg_popup_interface;
-    extern const Wl_interface wl_output_interface;
-    extern const Wl_interface wl_seat_interface;
+    extern __gshared wl_interface wl_callback_interface;
+    extern __gshared wl_interface wl_surface_interface;
+    //extern const wl_interface xdg_popup_interface;
+    extern __gshared wl_interface wl_output_interface;
+    extern __gshared wl_interface wl_seat_interface;
     
 
     struct Wl_callback_listener {
@@ -171,6 +174,6 @@ extern (C) nothrow {
         * Notify the client when the related request is done.
         * @param callback_data request-specific data for the callback
         */
-        void function(void* data, Wl_proxy*, uint callback_data) done;
+        void function(void* data, wl_proxy*, uint callback_data) done;
     }
 }

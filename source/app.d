@@ -6,6 +6,9 @@ import std.stdio;
 int main()
 {
     try {
+        auto dpy = Display.connect!(XDGTopLevel, XDGDecoration);
+
+        bool isrun = true;
         auto loop = DisplayLoop(null);
         
         loop.add(new Window(200, 400));
