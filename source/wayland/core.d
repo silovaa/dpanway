@@ -47,14 +47,18 @@ struct Proxy (T, int Destroy_code)
     }
 
     uint vers() const nothrow
-    {return wl_proxy_get_version(cast(wl_proxy*)m_ptr);}
-
-    void reset(T* ptr) 
     {
-        if (m_ptr)
-            cast(void) wl_proxy_marshal_flags(cast(wl_proxy*)m_ptr, Destroy_code, NULL, 
-                                   vers(), WL_MARSHAL_FLAG_DESTROY);
-        m_ptr = ptr;
+        return m_ptr ? wl_proxy_get_version(cast(wl_proxy*)m_ptr) : 0;
+    }
+
+    void opAssign(T* ptr) 
+    {
+        if (m_ptr != ptr) {
+            if (m_ptr)
+                cast(void) wl_proxy_marshal_flags(cast(wl_proxy*)m_ptr, Destroy_code, NULL, 
+                                    vers(), WL_MARSHAL_FLAG_DESTROY);
+            m_ptr = ptr;
+        }
     }
 
     T* c_ptr() const 
@@ -68,17 +72,31 @@ interface Global
 {
     const(char)* name() const nothrow;
     void bind(wl_registry *reg, uint name, uint vers) nothrow;
-    void destroy();
+    void dispose();
 } 
 
-class GlobalProxy(T, alias wliface, int Destroy_code): Global
+import std.conv : emplace;
+
+class GlobalCustomProxy(Self, T, alias wliface, int Destroy_code): Global
     if (is(typeof(wliface) : wl_interface*))
 {
 private: 
     Proxy!(T, Destroy_code) m_proxy;
+    
+    static ubyte[__traits(classInstanceSize, Self)] s_storage;
 
 public:
-    this(){m_proxy(null);}
+    static Self instance;
+
+    static Global create()
+    {
+        if (instance is null)
+            instance = emplace!(Self)(s_storage[]);
+
+        return instance;
+    }
+
+    @disable this();
 
     T* c_ptr() const 
     {return m_proxy.c_ptr;}
@@ -90,22 +108,24 @@ public:
 
     void bind(wl_registry* reg, uint name, uint vers) nothrow
     {
-        m_proxy.reset(cast(T*)wl_registry_bind(reg, name, &wliface, vers));
+        m_proxy = cast(T*)wl_registry_bind(reg, name, &wliface, vers);
     }
 
-    void destroy()
+    void dispose()
     {
-        m_proxy.reset(null);
+        m_proxy = null;
     }
 }
+
+final class GlobalProxy( T, alias wliface, int Destroy_code) 
+    : GlobalCustomProxy!(GlobalProxy!(T, wliface, Destroy_code), T, wliface, Destroy_code)
+{}
 
 alias surface_interface = wl_surface_interface;
 alias seat_interface = wl_seat_interface;
 
-
 extern (C) nothrow {
 
-    struct wl_display; 
     struct wl_proxy;
     struct wl_registry;
     alias Callback = extern (C) void function();

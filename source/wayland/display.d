@@ -3,7 +3,7 @@ module wayland.display;
 import core.sys.posix.poll: poll, pollfd, POLLIN, POLLOUT;
 import std.exception;
 import std.string;
-import std.stdio;
+//import std.stdio;
 
 import wayland.core;
 
@@ -13,20 +13,23 @@ import wayland.core;
 struct Display
 {
 public:
+    @disable this(this);
 
     static ref const(Display) connect(T...)(const(char)* name = null)
     {
-        if (!m_display){ 
+        if (!instance.m_display){ 
 
-            s_globals = new Global[T.length];
+            instance.m_globals.reserve(T.length * 2);
             static foreach (Type; T) {
-                Type.registry(s_globals);
+                Type.registry(instance.m_globals);
             }
 
-            get() = Display(name);
+            instance.m_globals.assumeSafeAppend();
+
+            instance.construct(name);
         }
 
-        return get();
+        return instance;
     }
 
     void event_wait() const
@@ -90,13 +93,15 @@ public:
     ~this()
     {
         if (m_display) {
+            foreach(Surface surf; m_surface_pool)
+                surf.dispose();
             foreach(Global global; s_globals)
-                global.destroy();
+                global.dispose();
 
-            s_globals.init;
+            s_globals.length = 0; //??
 
-	        if (m_compositor)  wl_proxy_destroy(m_compositor);
-	        if (m_registry) wl_proxy_destroy(m_registry);
+	        wl_proxy_destroy(cast(wl_proxy*)m_compositor);
+	        wl_proxy_destroy(cast(wl_proxy*)m_registry);
 
 	        wl_display_disconnect(m_display);
             m_display = null;
@@ -104,30 +109,26 @@ public:
     }
 
 package:
-    static ref Display get()
-    {
-        static Display dpy;
-        return dpy;
-    }
+    static Display instance;
 
     static wl_display* native()
     {
-        return m_display;
+        return instance.m_display;
     }
 
     static wl_compositor* compositor()
     {
-        return get().m_compositor;
+        return instance.m_compositor;
     }
 
 private:
 
-    static Global[] s_globals;
-    static wl_display* m_display;
+    Global[] m_globals;
+    wl_display* m_display;
 
-    wl_proxy*   m_registry;
-    immutable Wl_registry_listerner m_registry_listener;  
+    static immutable(wl_registry_listerner) lsr;
 
+    wl_registry*   m_registry;  
     wl_compositor* m_compositor;
 
     enum EventT {
@@ -136,26 +137,27 @@ private:
 
     pollfd[EventT.count] m_fds;
 
-    this(const(char)* name)
+    Surface[wl_surface*] m_surface_pool;
+
+    void construct(const(char)* name)
     {
         m_display = enforce(wl_display_connect(name), 
                             "failed to create display");
        
-	    m_registry = wl_proxy_marshal_constructor(
-                cast(Wl_proxy*) m_display,
-                WL_DISPLAY_GET_REGISTRY, &wl_registry_interface, null);
+	    m_registry = wl_display_get_registry(m_display);
+
+        auto iter = GlobalIterator(s_globals);
 
         enforce(wl_proxy_add_listener(m_registry, 
-                                    cast(Callback*) &m_registry_listener, 
-                                    &this) >= 0,
+                                    cast(Callback*) &lsr, 
+                                    &iter) >= 0,
                 "add registry listener failed");
 
         if (wl_display_roundtrip(m_display) < 0) 
 		    throw new Exception("wl_display_roundtrip() failed");
 
-	    if (m_compositor is null) 
-		    throw new Exception("compositor doesn't support wl_compositor");
-
+        m_compositor = enforce(iter.compositor, 
+		                    "compositor doesn't support wl_compositor");
 
         m_fds[EventT.wayland].fd = wl_display_get_fd(m_display);
 		m_fds[EventT.wayland].events = POLLIN;
@@ -166,14 +168,132 @@ private:
     }
 }
 
+/** 
+ * Базовый класс для всех отображаемых поверхностей
+ */
+class Surface
+{
+    this()
+    {
+        m_native = enforce(wl_compositor_create_surface(Display.compositor), 
+                            "Can't create surface");
+
+        wl_surface_add_listener(m_native.c_ptr, &surface_lsr, this);
+
+        auto manager = ScaleManager.get();
+        if (manager) {
+            m_fscale = wp_fractional_scale_manager_v1_get_fractional_scale(manager.c_ptr, m_native.c_ptr);
+
+            if (m_fscale) 
+                wp_fractional_scale_v1_add_listener(m_fscale.c_ptr, &scale_lsr, this);
+        }
+
+        Display.instance.m_window_pool[m_native.c_ptr] = this;
+    }
+
+    ~this()
+    {
+        if (m_native) {
+            Display.instance.m_window_pool.remove(m_native.c_ptr);
+        }
+    }
+
+    static void registry(Global[] reg)
+    { 
+        reg ~= ScaleManager.get();
+    }
+
+    final wl_surface* c_ptr() const
+    {
+        return m_native.c_ptr;
+    }
+
+    final voig commit()
+    {
+        wl_surface_commit(c_ptr());
+    }
+
+protected:
+    /** 
+     * Вызывается при разрушении Display, для правильной последовательности
+     * освобождения объектов wayland. При переопределении этого метода обязательно
+     * передать управление родительскому dispose
+     */
+    void dispose()
+    {
+        m_fscale = null;
+        m_native = null;
+    }
+
+    abstract void on_scale_changed(float /*factor*/);
+
 private:
+    alias ScaleManagerInterface = wp_fractional_scale_manager_v1_interface;
+    alias ScaleManager = GlobalProxy!(wp_fractional_scale_manager_v1,
+                                ScaleManagerInterface,
+                                WP_FRACTIONAL_SCALE_MANAGER_V1_DESTROY);
+
+    Proxy!(wl_surface, WL_SUBSURFACE_DESTROY) m_native;
+    Proxy!(wp_fractional_scale_v1,
+              WP_FRACTIONAL_SCALE_V1_DESTROY) m_fscale;
+     
+    static immutable(wp_fractional_scale_v1_listener) scale_lsr;
+    static immutable(wl_surface_listener)  surface_lsr;
+}
+
+private:
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+// Display impl
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct GlobalIterator
+{
+    this(Global[] protocols)
+    {
+        m_protocols = protocols;
+    }
+
+    wl_compositor* compositor;
+
+    bool find_compositor(const char* str) nothrow
+    {
+        if (!compositor && (strcmp(str, wl_compositor_interface.name) == 0))
+            return true;
+
+        return false;
+    }
+
+    Global[] m_protocols;
+    int index;
+
+    Global find(const(char)* str) nothrow
+    {
+        for(size_t i = index; i < m_protocols.length; ++i) {
+            if (strcmp(str, m_protocols[i].name()) == 0){
+                auto res = m_protocols[i];
+
+                if (i != index){
+                    m_protocols[i] = m_protocols[index];
+                    m_protocols[index] = res;
+                }
+
+                ++index;
+                return res;
+            }
+        }
+
+        return null;
+    }
+}
+
 extern (C) {
 
-    extern const Wl_interface wl_registry_interface;
-    extern const Wl_interface wl_compositor_interface;
-    extern const Wl_interface wl_shm_interface;
+    //extern __gshared wl_interface wl_registry_interface;
+    extern __gshared wl_interface wl_compositor_interface;
+    //extern __gshared wl_interface wl_shm_interface;
 
-    struct Wl_registry_listerner
+    struct wl_registry_listerner
     {
         void function (void* data,
                        Wl_proxy* wl_registry,
@@ -185,82 +305,76 @@ extern (C) {
                        Wl_proxy *wl_registry,
                        uint name) global_remove = &handle_global_rem;
     }
-    
-    Wl_display* wl_display_connect(const(char)* name = null);
-    int wl_display_get_fd(Wl_display*);
-    int wl_display_dispatch(Wl_display*);
-    int wl_display_dispatch_pending(Wl_display*);
-    int wl_display_flush(Wl_display*);
-    int wl_display_roundtrip(Wl_display*);
-    void wl_display_disconnect(Wl_display*);
+
+    void handle_global(void* data, wl_proxy* registry,
+		               uint name, const(char)* iface, uint ver) 
+    {
+        auto iter = cast(GlobalIterator*) data;
+
+        if (iter.find_compositor(iface))
+            iter.compositor =
+                cast(wl_compositor*)wl_registry_bind(registry, name, &wl_compositor_interface, ver);
+        else
+            if (auto item = iter.find(iface))
+                item.bind(registry, name, ver);
+    }
+
+    void handle_global_rem(void *data, Wl_proxy *registry, uint name) 
+    {
+        //writeln("handle_global_rem");
+    }
+
+    struct wl_display;
+    struct wl_compositor; 
+    wl_display* wl_display_connect(const(char)* name);
+    int wl_display_get_fd(wl_display*);
+    int wl_display_dispatch(wl_display*);
+    int wl_display_dispatch_pending(wl_display*);
+    int wl_display_flush(wl_display*);
+    int wl_display_roundtrip(wl_display*);
+    void wl_display_disconnect(wl_display*);
 
     enum uint WL_DISPLAY_SYNC = 0;
     enum uint WL_DISPLAY_GET_REGISTRY = 1;
     enum uint WL_REGISTRY_BIND = 0;
 
-    void handle_global(void* data, Wl_proxy* registry,
-		               uint name, const(char)* iface, uint ver) 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Surface impl
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    struct wl_surface;
+    struct wp_fractional_scale_v1;
+
+    extern __gshared wl_interface wp_fractional_scale_manager_v1_interface;
+
+    struct wl_surface_listener
     {
-        import core.stdc.string: strcmp;
-        import wayland.wlr_layer_shell_protocol;
+        auto enter = (void* data, wl_surface* s, wl_output* o) {
+                // Пусто
+        };
 
-	    auto state = cast(DisplayLoop*) data;
+        auto leave = (void *data,
+                        wl_surface *wl_surface,
+                        wl_output *output){};
 
-        if (strcmp(iface, wl_compositor_interface.name) == 0) {
-            state.m_compositor = wl_proxy_marshal_constructor(registry, 
-                                                            WL_REGISTRY_BIND, 
-                                                            &wl_compositor_interface, name, 
-                                                            wl_compositor_interface.name, 
-                                                            4, null);
-        } else if (strcmp(iface, wl_shm_interface.name) == 0) {
-            state.m_shm = wl_proxy_marshal_constructor(registry, 
-                                                            WL_REGISTRY_BIND, 
-                                                            &wl_shm_interface, name, 
-                                                            wl_shm_interface.name, 
-                                                            1, null);
-        } else if (LayerShellInterface.isSame(iface)) {
-            state.m_layer_shell = wl_proxy_marshal_constructor(registry, 
-                                                            WL_REGISTRY_BIND, 
-                                                            LayerShellInterface.native, name, 
-                                                            LayerShellInterface.native.name, 
-                                                            4, null);
-        } else if (strcmp(iface, wl_seat_interface.name) == 0) {
-            // wl_seat* seat = wl_proxy_marshal_constructor(registry, 
-            //                                                 WL_REGISTRY_BIND, 
-            //                                                 wl_seat_interface, name, 
-            //                                                 wl_seat_interface.name, 
-            //                                                 3, null);
-            // create_seat(state, seat);
+        auto preferred_buffer_scale = (void *data,
+                        wl_surface *wl_surface,
+                        int factor){};
 
-            writeln("add seat name: ", iface);
-
-        } else if (strcmp(iface, wl_output_interface.name) == 0) {
-            state.add_screen(wl_proxy_marshal_constructor(registry, 
-                                                        WL_REGISTRY_BIND, 
-                                                        &wl_output_interface, name, 
-                                                        wl_output_interface.name, 
-                                                        4, null),
-                            name, iface);
-        }
-        //  else if (strcmp(iface, xdg_wm_base_interface.name) == 0) {
-        //     state.m_xdg_wm_base = wl_proxy_marshal_constructor(registry, 
-        //                                                     WL_REGISTRY_BIND, 
-        //                                                     xdg_wm_base_interface, name, 
-        //                                                     xdg_wm_base_interface.name, 
-        //                                                     1, null);
-        //      writeln("add xdg_activation name:", iface);
-        // } else if (strcmp(iface, wp_cursor_shape_manager_v1_interface.name) == 0) {
-        //     // state.cursor_shape_manager = wl_proxy_marshal_constructor(registry, 
-        //     //                                                 WL_REGISTRY_BIND, 
-        //     //                                                 wp_cursor_shape_manager_v1_interface, name, 
-        //     //                                                 wp_cursor_shape_manager_v1_interface.name, 
-        //     //                                                 1, null);
-        //     writeln("add cursor_shape name:", iface);
-        // }
+        auto preferred_buffer_transform = (void *data,
+                        wl_surface *wl_surface,
+                        uint transform){};
     }
 
-    void handle_global_rem(void *data, Wl_proxy *registry, uint name) 
-    {
-        writeln("handle_global_rem");
+    struct wp_fractional_scale_v1_listener {
+        auto preferred_scale = (void* data, wp_fractional_scale_v1 *, 
+                        uint scale){
+            auto surface = cast(Surface) data;
+            float val = scale / 120;
+
+            surface.on_scale_changed(val);
+        }
     }
 }
+
+
