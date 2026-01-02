@@ -1,0 +1,12 @@
+name "panway"
+targetType "executable"
+description "Главное приложение"
+
+// Подключаем подпакет из папки ./core
+subPackage "./wayland"
+
+// Зависеть от этого подпакета
+dependency "panway:wayland" version="*"
+
+// Исходники самого приложения (main)
+sourcePaths "source"

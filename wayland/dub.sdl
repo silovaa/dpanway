@@ -1,0 +1,15 @@
+name "wayland"
+targetType "library"
+description "Wayland library implementation"
+
+preBuildCommands "chmod +x wayland_gen.sh" "./wayland_gen.sh"
+
+# 2. Указываем файлы для компиляции (DUB сам скомпилирует их в .obj/.o)
+sourceFiles "c_generated/*.c" 
+
+# 3. Настраиваем пути поиска для импорта и препроцессора
+importPaths "c_generated"
+dflags "-P-Ic_generated"
+
+# 4. Линковка с системной библиотекой
+libs "wayland-client"
