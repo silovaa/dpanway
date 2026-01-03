@@ -6,6 +6,9 @@ import wayland.sensitive_layer;
 
 package(wayland):
 
+/** 
+ * Базовый класс для всех отображаемых поверхностей
+ */
 class Surface: SurfaceInterface
 {
     ~this()
@@ -88,7 +91,6 @@ private:
     SensitiveLayer input_handler;
      
     static immutable(WpFractionalScaleV1Listener) scale_lsr;
-    static immutable(WlSurfaceListener)  surface_lsr;
 }
 
 private:
@@ -101,35 +103,45 @@ class ScaleManager: Global
                         WP_FRACTIONAL_SCALE_MANAGER_V1_DESTROY);
 }
 
-extern(C){
-    struct WlSurfaceListener
-    {
-        auto enter = (void* data, wl_surface* s, wl_output* o) {
+immutable wl_surface_listener surface_lsr =
+{
+    enter: &cb_enter,
+    leave: &cb_leave,
+    preferred_buffer_scale: &cb_preferred_buffer_scale,
+    preferred_buffer_transform: &cb_preferred_buffer_transform
+};
+
+immutable wp_fractional_scale_v1_listener scale_lsr =
+{
+    preferred_scale: &cb_preferred_scale
+};
+
+extern(C) nothrow @nogc {
+
+void cb_enter(void* data, wl_surface* s, wl_output* o) 
+{
                 // Пусто
-        };
+}
 
-        auto leave = (void *data,
+void cb_leave(void *data, wl_surface *wl_surface,
+            wl_output *output){}
+
+void cb_preferred_buffer_scale(void *data,
                         wl_surface *wl_surface,
-                        wl_output *output){};
+                        int factor){}
 
-        auto preferred_buffer_scale = (void *data,
-                        wl_surface *wl_surface,
-                        int factor){};
-
-        auto preferred_buffer_transform = (void *data,
+void cb_preferred_buffer_transform(void *data,
                         wl_surface *wl_surface,
                         uint transform){};
-    }
 
-    struct WpFractionalScaleV1Listener 
-    {
-        auto preferred_scale = (void* data, wp_fractional_scale_v1 *, 
-                        uint scale){
-            auto surface = cast(Surface) data;
-            float val = scale / 120;
+void cb_preferred_scale(void* data, wp_fractional_scale_v1 *, 
+                        uint scale)
+{
+    auto surface = cast(Surface) data;
+    float val = scale / 120;
 
-            surface.on_scale_changed(val);
-        };
-    }
+    surface.on_scale_changed(val);
+};
+
 }
 

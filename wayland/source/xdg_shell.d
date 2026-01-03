@@ -52,11 +52,18 @@ private:
             m_top = xdg_surface_get_toplevel(m_xdg_surfase.c_ptr);
             enforce(m_top,"Can't create toplevel role");
 
-            static immutable XdgToplevelListener toplevel_lsr;
+            static immutable xdg_toplevel_listener toplevel_lsr = {
+                configure: &cb_configure,
+                close    : &cb_close,
+                configure_bounds: &cb_configure_bounds,
+                wm_capabilities : &cb_wm_capabilities
+            };
             xdg_toplevel_add_listener(m_top.c_ptr(), 
                                     cast(Callback*) &toplevel_lsr, this);
 
-            static immutable XdgSurfaceListener surface_lsr;
+            static immutable xdg_surface_listener surface_lsr = {
+                configure: &cb_configure
+            };
             xdg_surface_add_listener (m_xdg_surfase.c_ptr(), 
                                     cast(Callback*) &surface_lsr, this);
         }
@@ -89,58 +96,61 @@ final class XDGWmBase: Global
     {
         set(reg, name, vers);
 
-        static immutable XdgWmBaseListener listener;
+        static immutable xdg_wm_base_listener listener = {
+            ping: &cb_ping
+        };
+
         xdg_wm_base_add_listener (c_ptr(), &listener, null);
     }
 }
 
-extern (C) nothrow {
+extern (C) nothrow @nogc{
 
-struct XdgWmBaseListener {
-    auto ping = (void*, xdg_wm_base *wm_base, uint serial){
-        xdg_wm_base_pong(wm_base, serial);
-    };
+void cb_ping(void*, xdg_wm_base *wm_base, uint serial)
+{
+    xdg_wm_base_pong(wm_base, serial);
 }
 
-struct XdgToplevelListener {
-    auto configure = (void* data, xdg_toplevel *tt,
-                    int width, int height, wl_array* states){
+void cb_configure(void* data, xdg_toplevel *tt,
+                    int width, int height, wl_array* states)
+{
 
-        auto inst = cast(XDGTopLevel)data;
-        inst.m_state = 0;
+    auto inst = cast(XDGTopLevel)data;
+    inst.m_state = 0;
 
-        uint32_t[] statesSlice = 
-            (cast(uint32_t*) states.data)[0 .. states.size / uint32_t.sizeof];
+    uint32_t[] statesSlice = 
+        (cast(uint32_t*) states.data)[0 .. states.size / uint32_t.sizeof];
 
-        foreach (state; statesSlice) {
-             inst.m_state |= (1 << state);
-        }
+    foreach (state; statesSlice) {
+            inst.m_state |= (1 << state);
+    }
 
-        if (width && height){
-            inst.m_width  = width;
-            inst.m_height = height;
-        }
-    };
-    auto close = (void *data, xdg_toplevel*){
-        auto inst = cast(XDGTopLevel)data;
-        inst.closed();
-    };
-    auto configure_bounds = (void* data, xdg_toplevel*, int32_t width, int32_t height){
-
-    };
-    auto wm_capabilities = (void *data, xdg_toplevel *xdg_toplevel,
-                                wl_array *capabilities){
-    };
+    if (width && height){
+        inst.m_width  = width;
+        inst.m_height = height;
+    }
 }
 
-struct XdgSurfaceListener {
-    auto configure = (void* data, xdg_surface *xdg_surf, uint32_t serial){
+void cb_close(void *data, xdg_toplevel*)
+{
+    auto inst = cast(XDGTopLevel)data;
+    inst.closed();
+}
 
-        auto inst = cast(XDGTopLevel)data;
-        xdg_surface_ack_configure(xdg_surf, serial);
+void cb_configure_bounds(void* data, xdg_toplevel*, int32_t width, int32_t height)
+{}
 
-        inst.configure(inst.m_width, inst.m_height, inst.m_state);
-    };
+void cb_wm_capabilities(void *data, xdg_toplevel *xdg_toplevel,
+                            wl_array *capabilities)
+{}
+
+void cb_configure(void* data, xdg_surface *xdg_surf, uint32_t serial)
+{
+
+    auto inst = cast(XDGTopLevel)data;
+    xdg_surface_ack_configure(xdg_surf, serial);
+
+    inst.configure(inst.m_width, inst.m_height, inst.m_state);
 }
 
 }

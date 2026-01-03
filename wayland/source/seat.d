@@ -18,9 +18,8 @@ protected:
 
     override void bind(wl_proxy* reg, uint name_id, uint vers) nothrow
     {
-        set(reg, name_id, 4); //To do перейти на актуальную версию
+        set(reg, name_id, vers); 
 
-        //static immutable WlSeatListener seat_listener;
         if (wl_seat_add_listener(c_ptr(), 
                                 cast(Callback*) &seat_listener, 
                                 this) < 0)
