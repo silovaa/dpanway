@@ -1,9 +1,9 @@
 module wayland.internal.core;
 
 import core.stdc.string : strcmp;
-import wayland_import;
+public import wayland_import;
 
-package:
+package(wayland):
 
 // immutable class WlInterface
 // {
@@ -140,93 +140,44 @@ public:
     }
 }
 
-// final class GlobalProxy( T, const(wl_interface)* wliface, int Destroy_code) 
-//     : GlobalCustomProxy!(GlobalProxy!(T, wliface, Destroy_code), T, wliface, Destroy_code)
-// {}
+mixin template RegistryProtocols(T...)
+{
+    static void registry(Global[] reg)
+    {
+        alias CurrentClass = typeof(this);
+        
+        // 1. Проверка и рекурсивный вызов родителя
+        alias BaseTypes = __traits(getUnitaryBaseClasses, CurrentClass);
+        static if (BaseTypes.length > 0)
+        {
+            alias Parent = BaseTypes[0];
+            static if (__traits(hasMember, Parent, "registry"))
+            {
+                Parent.registry(reg);
+            }
+        }
 
-//alias surface_interface = wl_surface_interface;
-//alias seat_interface = wl_seat_interface;
-//extern(C) struct wl_proxy;
-
-// private:
-// extern (C) {
-//     struct wl_message {
-//         /** Message name */
-//         const char *name;
-//         /** Message signature */
-//         const char *signature;
-//         /** Object argument interfaces */
-//         const wl_interface **types; 
-//     }
-
-//     struct wl_interface 
-//     {
-//         /** Interface name */
-//         const(char)* name;
-//         /** Interface version */
-//         int _version;
-//         /** Number of methods (requests) */
-//         int method_count;
-//         /** Method (request) signatures */
-//         const(wl_message)* methods;
-//         /** Number of events */
-//         int event_count;
-//         /** Event signatures */
-//         const(wl_message)* events;
-//     }
-
-//     wl_proxy* wl_proxy_marshal_flags(wl_proxy*, uint opcode,
-//                                     const(wl_interface)* iface,
-//                                     uint ver, uint flags, ...);
-
-//     enum uint WL_REGISTRY_BIND = 0;
-// }
-
-// //private:
-// extern (C) nothrow {
-
-//     //struct wl_proxy;
-//     //struct wl_registry;
-//     alias Callback = extern (C) void function();
-
-//     void wl_proxy_destroy(wl_proxy*);
-//     int wl_proxy_add_listener(wl_proxy*, Callback*, void* /*data*/);
-//     wl_proxy* wl_proxy_marshal_constructor(wl_proxy*, uint opcode,
-//                                            const wl_interface* iface, ...);
-    
-//     uint wl_proxy_get_version(wl_proxy*);
-
-//     enum uint WL_MARSHAL_FLAG_DESTROY = 1 << 0;
-
-//     enum uint WL_COMPOSITOR_CREATE_SURFACE = 0;
-//     enum uint WL_COMPOSITOR_CREATE_REGION = 1;
-
-//     enum uint  WL_SURFACE_DESTROY = 0;
-//     enum uint  WL_SURFACE_ATTACH = 1;
-//     enum uint  WL_SURFACE_DAMAGE = 2;
-//     enum uint  WL_SURFACE_FRAME = 3;
-//     enum uint  WL_SURFACE_SET_OPAQUE_REGION = 4;
-//     enum uint  WL_SURFACE_SET_INPUT_REGION = 5;
-//     enum uint  WL_SURFACE_COMMIT = 6;
-//     enum uint  WL_SURFACE_SET_BUFFER_TRANSFORM = 7;
-//     enum uint  WL_SURFACE_SET_BUFFER_SCALE = 8;
-//     enum uint  WL_SURFACE_DAMAGE_BUFFER = 9;
-//     enum uint  WL_SURFACE_OFFSET = 10;
-
-//     //extern __gshared wl_interface wl_callback_interface;
-//     //extern __gshared wl_interface wl_surface_interface;
-//     //extern const wl_interface xdg_popup_interface;
-//     //extern __gshared wl_interface wl_output_interface;
-//     //extern __gshared wl_interface wl_seat_interface;
-    
-
-//     struct wl_callback_listener {
-//         /**
-//         * done event
-//         *
-//         * Notify the client when the related request is done.
-//         * @param callback_data request-specific data for the callback
-//         */
-//         void function(void* data, wl_proxy*, uint callback_data) done;
-//     }
-//}
+        // 2. Итерация по типам T и вызов их статических методов create
+        static foreach (Type; T)
+        {
+            static if (__traits(hasMember, Type, "create"))
+            {
+                // Вызываем Type.create() и проверяем, что результат — это Global
+                auto g = Type.create();
+                
+                static if (is(typeof(g) : Global)) 
+                {
+                    reg ~= g;
+                }
+                else 
+                {
+                    static assert(0, "Type " ~ Type.stringof ~ ".create() должен возвращать Global");
+                }
+            }
+            else
+            {
+                static assert(0, "Type " ~ Type.stringof ~ " должен иметь статическую функцию create()");
+            }
+        }
+    }
+}

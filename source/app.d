@@ -1,4 +1,6 @@
 import wayland.display;
+import wayland.xdg_shell_protocol;
+
 import window;
 
 import std.stdio;
@@ -6,14 +8,17 @@ import std.stdio;
 int main()
 {
     try {
-        auto dpy = Display.connect!(XDGTopLevel, XDGDecoration);
+        auto dpy = Display.connect!(XDGTopLevel);//, XDGDecoration);
 
         bool isrun = true;
-        auto loop = DisplayLoop(null);
-        
-        loop.add(new Window(200, 400));
-        
-        loop.run();
+        auto window = new Window(200, 400);
+
+        window.setTitle("Example application");
+        window.onClosed = (){isrun = false;};
+
+        while(isrun) {
+            dpy.event_wait();
+        }
     }
     catch(Exception e) {
         writeln(e.msg);

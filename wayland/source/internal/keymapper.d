@@ -1,6 +1,6 @@
 module wayland.internal.keymapper;
 
-package:
+//package:
 
 enum ModSet {locked, effective, consumed}
 
@@ -59,7 +59,7 @@ final class XkbMapper: KeyMapper
     override uint modifiers(ModSet group) const nothrow
     {
         switch (group) {
-        case ModSet.effective:destruct
+        case ModSet.effective:
             return xkb_state_serialize_mods(
                 mapper.kstate, XKB_STATE_MODS_EFFECTIVE);
         case ModSet.consumed:

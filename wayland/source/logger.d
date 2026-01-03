@@ -5,9 +5,10 @@ import core.stdc.stdio : fprintf, stderr, vfprintf;
 enum LogLevel { info, error, debug_ }
 
 struct Logger {
-    @property static @safe nothrow @nogc:
-
-    void log(LogLevel level, string fmt, ...) {
+    
+static @safe nothrow @nogc:
+    void log(LogLevel level, string fmt, ...) 
+    {
         // Используем printf-подобные функции, так как они не кидают исключений
         const char* prefix;
         final switch (level) {
