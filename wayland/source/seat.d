@@ -20,15 +20,13 @@ protected:
     {
         set(reg, name_id, vers); 
 
-        if (wl_seat_add_listener(c_ptr(), 
-                                cast(Callback*) &seat_listener, 
-                                this) < 0)
-            Logger.log(LogLevel.error, "failed to add seat listener");
+        if (wl_seat_add_listener(c_ptr(), &seat_listener, cast(void*)this) < 0)
+            Logger.error("failed to add seat listener");
     }
 
     override void dispose() 
     {
-        m_keyboard = Keyboard;
+        m_keyboard = Keyboard();
         m_pointer  = null;
         m_proxy = null;
     }
@@ -54,12 +52,12 @@ protected:
 
 private:
 
-immutable (wl_seat_listener) seat_listener = {
+__gshared wl_seat_listener seat_listener = {
     capabilities: &cb_capabilities,
     name:         &cb_name
 };
 
-immutable wl_keyboard_listener keyboard_listener = {
+__gshared wl_keyboard_listener keyboard_listener = {
     keymap: &cb_kbkeymap,
     enter : &cb_kbenter,
     leave : &cb_kbleave,
@@ -68,72 +66,79 @@ immutable wl_keyboard_listener keyboard_listener = {
     repeat_info: &cb_kbrepeat_info
 };
 
-immutable wl_pointer_listener pointer_listener = {
-    enter:  &cb_enter,
-    leave:  &cb_leave,
-    motion: &cb_motion,
-    button: &cb_button,
-    axis  : &cb_axis,
-    frame : &cb_frame,
-    axis_source: &cb_axis_source,
-    axis_stop  : &cb_axis_stop,
-    axis_discrete: &cb_axis_discrete
+__gshared wl_pointer_listener pointer_listener = {
+    enter:  &cb_pointer_enter,
+    leave:  &cb_pointer_leave,
+    motion: &cb_pointer_motion,
+    button: &cb_pointer_button,
+    axis  : &cb_pointer_axis,
+    frame : &cb_pointer_frame,                  //since 5
+    axis_source: &cb_axis_source,       //since 5
+    axis_stop  : &cb_axis_stop,         //since 5
+    axis_discrete: &cb_axis_discrete,   //since 5
+    axis_value120: &cb_axis_value120,   //since 8
+    axis_relative_direction: &cb_axis_relative_direction    //since 9
 };
 
-extern(C) nothrow @nogc {
+extern(C) nothrow{
+
+import std.format: format;
 
 void cb_capabilities(void* data, wl_seat* wlseat, uint flags)
 {
     auto seat = cast(Seat) data;
 
 //To do проверить добавление второй мыши и клавиатуры
+    try{
+        if ((flags & WL_SEAT_CAPABILITY_POINTER) != 0) {
+            wl_pointer* pointer = wl_seat_get_pointer(wlseat);
+            seat.m_pointer = pointer;
+            if (wl_pointer_add_listener(pointer, &pointer_listener, data) < 0)
+                Logger.error("failed to add pointer listener");
+        }
+        else {
+            //seat.m_hovered_surf = null;
+            seat.m_pointer = null;
+        }
 
-    if ((flags & WL_SEAT_CAPABILITY_POINTER) != 0) {
-        wl_pointer* pointer = wl_seat_get_pointer(wlseat);
-        seat.m_pointer = pointer;
-        if (wl_pointer_add_listener(pointer, &pointer_listener, data) < 0)
-            Logger.log(LogLevel.error, "failed to add pointer listener");
-    }   
-    else {
-        //seat.m_hovered_surf = null;
-        seat.m_pointer = null;
+        if ((flags &  WL_SEAT_CAPABILITY_KEYBOARD) != 0){
+            wl_keyboard* kb = wl_seat_get_keyboard(wlseat);
+            if (wl_keyboard_add_listener(kb, &keyboard_listener, data) < 0)
+                Logger.error("failed to add keyboard listener");
+        }
+        else {
+            //seat.m_focused_surf = null;
+            seat.m_keyboard = Keyboard();
+        }
     }
-
-    if ((flags &  WL_SEAT_CAPABILITY_KEYBOARD) != 0){
-        wl_keyboard* kb = wl_seat_get_keyboard(wlseat);
-        if (wl_keyboard_add_listener(kb, &keyboard_listener, data) < 0)
-            Logger.log(LogLevel.error, "failed to add keyboard listener");
-    }
-    else {
-        //seat.m_focused_surf = null;
-        seat.m_keyboard = Keyboard();
-    }
+    catch(Exception e)
+        Logger.error("Callback seat capabilities failed: %s", e.msg);
 }
 
-void cb_name(void*, wl_seat*, const (char)* name)
+void cb_name(void*, wl_seat*, const(char)* name)
 {
-    Logger.log(LogLevel.info, "Seat connected, name: %s", name);
+    Logger.info("Seat connected, name: %s", name);
 } 
 
 // keyboard_listener ///////////////////////////////////////////////////////////////////
 
 void cb_kbkeymap (void *data, wl_keyboard* wlkb,
-                uint format, int fd, uint size)
+                uint kbformat, int fd, uint size)
 {
     auto seat = cast(Seat) data;
 
-    if (format == WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1){
+    if (kbformat == WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1){
 
         try {
             seat.m_keyboard = Keyboard(wlkb, new XkbMapper(fd, size));
         }
         catch(Exception e){
-            Logger.log(LogLevel.error, "KEYMAP_FORMAT failed: %s", e.msg);
+            Logger.error("KEYMAP_FORMAT failed: %s", e.msg);
         }
     }
     else
         //To Do WL_KEYBOARD_KEYMAP_FORMAT_NO_KEYMAP
-        Logger.log(LogLevel.info, "KEYMAP_FORMAT not supported, format code: %d", format);
+        Logger.error("KEYMAP_FORMAT not supported, format code: %d",kbformat);
 
     close(fd);
 }
@@ -141,38 +146,46 @@ void cb_kbkeymap (void *data, wl_keyboard* wlkb,
 void cb_kbenter(void *data, wl_keyboard*, uint serial,
             wl_surface *surface, wl_array *keys)
 {            
-    auto seat = cast(Seat)data;
-    auto surf = cast(Surface)
-        wl_surface_get_user_data(surface);
+    try{
+        auto seat = cast(Seat)data;
+        auto surf = cast(Surface)
+            wl_surface_get_user_data(surface);
 
-    if(seat.m_current_surf != surf && surf){
-        seat.m_keyboard.m_focused_surf = surf.inputHandler;
+        if(seat.m_current_surf != surf && surf){
+            seat.m_keyboard.m_focused_surf = surf.inputHandler;
 
-        if (seat.m_keyboard.m_focused_surf is null) {
+            if (seat.m_keyboard.m_focused_surf is null) {
 
-            Logger.log(LogLevel.error, "SensetiveLayer not set");
-            seat.m_current_surf = null;
-            return;
+                Logger.error("SensetiveLayer not set");
+                seat.m_current_surf = null;
+                return;
+            }
+
+            seat.m_current_surf = surf;
         }
 
-        seat.m_current_surf = surf;
+        seat.m_keyboard.emit_focus(true);
     }
-
-    seat.m_keyboard.emit_focus(true);
+    catch(Exception e)
+        Logger.error("Callback keyboerd enter failed: %s", e.msg);
 }
 
 void cb_kbleave(void *data, wl_keyboard *wl_kd, uint, wl_surface*)
 {
     auto seat = cast(Seat)data;
 
-    if (seat.m_current_surf !is null){
+    try{
+        if (seat.m_current_surf !is null){
 
-        seat.m_keyboard.emit_focus(false);
-        seat.m_current_surf = null;
+            seat.m_keyboard.emit_focus(false);
+            seat.m_current_surf = null;
 
-        itimerspec timer;
-        Display.instance.kb_repeat.set_time(timer);
+            itimerspec timer;
+            Display.instance.kb_repeat.set_time(timer);
+        }
     }
+    catch(Exception e)
+        Logger.error("Callback keyboerd leave failed: %s", e.msg);
 }
 
 void cb_kbkey(void* data, wl_keyboard* wl_kd, uint /*serial*/,
@@ -180,26 +193,30 @@ void cb_kbkey(void* data, wl_keyboard* wl_kd, uint /*serial*/,
 {
     auto seat = cast(Seat)data;
     auto mapper = seat.m_keyboard.m_mapper;
-        
-    if (seat.m_current_surf !is null){
 
-        itimerspec spec;
+    try {
+        if (seat.m_current_surf !is null){
 
-        if (state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+            itimerspec spec;
 
-            if (mapper.mayRepeats(key)){
-                spec.it_value.tv_sec = seat.delay_sec;
-                spec.it_value.tv_nsec = seat.delay_nsec;
+            if (state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 
-                spec.it_interval.tv_sec = seat.rate_sec;
-                spec.it_interval.tv_nsec = seat.rate_nsec;
+                if (mapper.mayRepeats(key)){
+                    spec.it_value.tv_sec = seat.delay_sec;
+                    spec.it_value.tv_nsec = seat.delay_nsec;
+
+                    spec.it_interval.tv_sec = seat.rate_sec;
+                    spec.it_interval.tv_nsec = seat.rate_nsec;
+                }
+
+                seat.m_keyboard.emit_key(key);
             }
 
-            seat.m_keyboard.emit_key(key);
+            Display.instance.kb_repeat.set_time(spec);
         }
-
-        Display.instance.kb_repeat.set_time(spec);
     }
+    catch(Exception e)
+        Logger.error("Callback keyboerd key failed: %s", e.msg);
 }
 
 void cb_kbmodifiers(void *data, wl_keyboard *, uint /*serial*/,
@@ -210,8 +227,11 @@ void cb_kbmodifiers(void *data, wl_keyboard *, uint /*serial*/,
 {
     auto mapper = (cast(Seat)data).m_keyboard.m_mapper;
 
-    mapper.updateMask(mods_depressed, mods_latched, mods_locked, group);
-            
+    try{
+        mapper.updateMask(mods_depressed, mods_latched, mods_locked, group);
+    }
+    catch(Exception e)
+        Logger.error("Callback keyboerd modifiers failed: %s", e.msg);
 }
 
 void cb_kbrepeat_info(void *data, wl_keyboard *wl_kd,
@@ -241,49 +261,61 @@ void cb_kbrepeat_info(void *data, wl_keyboard *wl_kd,
         seat.rate_sec = 1;
     }
 
-    Logger.log(LogLevel.info, "repeat_info delay %i ms, rate %i per second", delay, rate);
+    Logger.info("repeat_info delay %i ms, rate %i per second", delay, rate);
 }
 
 // pointer_listener ////////////////////////////////////////////////////////////////////
 
-void cb_enter(void *data, wl_pointer *pointer,
+void cb_pointer_enter(void *data, wl_pointer *pointer,
                 uint serial, wl_surface *surface,
                 wl_fixed_t sx, wl_fixed_t sy)
 {
     // Happens in the case we just destroyed the surface.
     if (surface is null) return;
 
-    auto seat = cast(Seat)data;
-    auto surf = cast(Surface) wl_surface_get_user_data(surface);
+    try{
+        auto seat = cast(Seat)data;
+        auto surf = cast(Surface) wl_surface_get_user_data(surface);
 
-    seat.m_hovered_surf = surf.inputHandler;
+        seat.m_hovered_surf = surf.inputHandler;
 
-    if (seat.m_hovered_surf !is null)
-        seat.m_hovered_surf.point(PointerState.enter, seat.m_pointer.set(sx, sy));
+        if (seat.m_hovered_surf !is null)
+            seat.m_hovered_surf.point(PointerState.enter, seat.m_pointer.set(sx, sy));
+    }
+    catch(Exception e)
+        Logger.error("Callback pointer enter failed: %s", e.msg);
 }
 
-void cb_leave(void *data, wl_pointer *pointer,
+void cb_pointer_leave(void *data, wl_pointer *pointer,
                 uint serial, wl_surface *surface)
 {
     auto seat = cast(Seat)data;
 
-    if (seat.m_hovered_surf) {
+    try{
+        if (seat.m_hovered_surf) {
 
-        seat.m_hovered_surf.point(PointerState.leave, seat.m_pointer);
-        seat.m_hovered_surf = null;
+            seat.m_hovered_surf.point(PointerState.leave, seat.m_pointer);
+            seat.m_hovered_surf = null;
+        }
     }
+    catch(Exception e)
+        Logger.error("Callback pointer leave failed: %s", e.msg);
 }
 
-void cb_motion (void *data, wl_pointer *pointer,
+void cb_pointer_motion (void *data, wl_pointer *pointer,
                 uint time, wl_fixed_t sx, wl_fixed_t sy)
 {
     auto seat = cast(Seat)data;
 
-    if (seat.m_hovered_surf)
-        seat.m_hovered_surf.point_motion(time, seat.m_pointer.set(sx, sy));
+    try{
+        if (seat.m_hovered_surf)
+            seat.m_hovered_surf.point_motion(time, seat.m_pointer.set(sx, sy));
+    }
+    catch(Exception e)
+        Logger.error("Callback pointer motion failed: %s", e.msg);
 }
 
-void cb_button(void *data, wl_pointer *pointer,
+void cb_pointer_button(void *data, wl_pointer *pointer,
             uint serial, uint time, uint button,
             uint state)
 {
@@ -291,47 +323,55 @@ void cb_button(void *data, wl_pointer *pointer,
 
     if (seat.m_hovered_surf) {
 
-        import core.sys.posix.time : posix_time = timespec;
-        /* count click */
-        posix_time now;
-        clock_gettime(CLOCK_MONOTONIC, &now);
+        try{
+            import core.sys.posix.time : posix_time = timespec;
+            /* count click */
+            posix_time now;
+            clock_gettime(CLOCK_MONOTONIC, &now);
 
-        if (state == WL_POINTER_BUTTON_STATE_PRESSED){
+            if (state == WL_POINTER_BUTTON_STATE_PRESSED){
 
-            if (seat.m_last_released_button == button &&
-                now.tv_sec == seat.m_stamp &&
-                time - seat.m_last_time <= 300)
-                seat.m_count_click += 1;
-            else
-                seat.m_count_click = 1;
+                if (seat.m_last_released_button == button &&
+                    now.tv_sec == seat.m_stamp &&
+                    time - seat.m_last_time <= 300)
+                    seat.m_count_click += 1;
+                else
+                    seat.m_count_click = 1;
 
-            auto key = seat.m_keyboard.modifiers(Mods.effective);
+                auto key = seat.m_keyboard.modifiers(Mods.effective);
 
-            seat.m_hovered_surf.click(cast(PointerButton)button, true,
-                                        seat.m_count_click, 
-                                        key,
-                                        seat.m_pointer);
+                seat.m_hovered_surf.click(cast(PointerButton)button, true,
+                                            seat.m_count_click,
+                                            key,
+                                            seat.m_pointer);
+            }
+            else {
+                seat.m_last_released_button = button;
+                seat.m_last_time = time;
+                seat.m_stamp = now.tv_sec;
+                seat.m_hovered_surf.click(cast(PointerButton)button,
+                                            false, 0, 0, seat.m_pointer);
+            }
         }
-        else {
-            seat.m_last_released_button = button;
-            seat.m_last_time = time;
-            seat.m_stamp = now.tv_sec;
-            seat.m_hovered_surf.click(cast(PointerButton)button, 
-                                        false, 0, 0, seat.m_pointer);
-        }
+        catch(Exception e)
+            Logger.error("Callback pointer button failed: %s", e.msg);
     }
 }
 
-void cb_axis(void *data, wl_pointer *pointer,
+void cb_pointer_axis(void *data, wl_pointer *pointer,
                uint time, uint axis, wl_fixed_t value)
 {
     auto seat = cast(Seat)data;
 
-    if (seat.m_hovered_surf)
-        seat.m_hovered_surf.scroll(time, axis, wl_fixed_to_double(value));
+    try{
+        if (seat.m_hovered_surf)
+            seat.m_hovered_surf.scroll(time, axis, wl_fixed_to_double(value));
+    }
+    catch(Exception e)
+        Logger.error("Callback pointer axis failed: %s", e.msg);
 }
 
-void cb_frame(void* data, wl_pointer* pointer) 
+void cb_pointer_frame(void* data, wl_pointer* pointer)
 {
     // Конец группы событий. Применяйте изменения здесь для плавности.
 }
@@ -339,5 +379,12 @@ void cb_frame(void* data, wl_pointer* pointer)
 void cb_axis_source(void* data, wl_pointer* pointer, uint source) {}
 void cb_axis_stop(void* data, wl_pointer* pointer, uint time, uint axis) {}
 void cb_axis_discrete(void* data, wl_pointer* pointer, uint axis, int discrete) {}
-
+void cb_axis_value120(void *data,
+                      wl_pointer *wl_pointer,
+                    uint axis,
+                    int value120){}
+void cb_axis_relative_direction(void *data,
+                    wl_pointer *wl_pointer,
+                    uint32_t axis,
+                    uint32_t direction){}
 }

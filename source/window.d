@@ -3,7 +3,7 @@ module window;
 import std.stdio;
 
 //import wayland.core;
-import wayland.wayland.xdg_shell_protocol;
+import wayland.xdg_shell_protocol;
 // import egl;
 // import opengl.gl3; 
 
@@ -30,7 +30,7 @@ writeln("Window Dtor");
     //     return m_egl.create(display);
     // }
 
-    override void configure(uint w, uint h) nothrow
+    override void configure(uint w, uint h, uint s)
     {
         //  m_width = w; m_height = h;
 
@@ -40,13 +40,20 @@ writeln("Window Dtor");
         //     m_egl_window = wl_egl_window_create(m_surface, w, h);
         //     m_egl.createSurface(m_egl_window);
         // }
+
+        writeln("Window configure ");
     }
 
-    void delegate() onClose;
+    void delegate() onClosed;
 
     override void closed()
     {
-        if (onClose) onClose();
+        if (onClosed) onClosed();
+    }
+
+    override void on_scale_changed(float factor)
+    {
+writeln("Window on_scale_changed ");
     }
 
     // override void draw() nothrow

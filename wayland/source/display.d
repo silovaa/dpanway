@@ -123,6 +123,7 @@ package:
     }
 
     Timer kb_repeat;
+    SurfaceInterface[wl_surface*] m_surface_pool;
 
 private:
 
@@ -137,8 +138,6 @@ private:
     }
 
     pollfd[EventT.count] m_fds;
-
-    SurfaceInterface[wl_surface*] m_surface_pool;
 
     void construct(const(char)* name)
     {
@@ -174,9 +173,6 @@ private:
 }
 
 package:
-/** 
- * Базовый класс для всех отображаемых поверхностей
- */
 
 import core.sys.linux.timerfd;
 import core.sys.posix.unistd : close, read;
@@ -188,7 +184,7 @@ interface SurfaceInterface
 
 struct Timer
 {
-    this(void function() callback)
+    this(void delegate() callback)
     {
         cb_emit = callback;
         Display.instance.m_fds[Display.EventT.key].fd = 
@@ -212,7 +208,7 @@ struct Timer
     }
 
 private:
-    void function() cb_emit;
+    void delegate() cb_emit;
 
     void emit(int fd) 
     {
@@ -290,7 +286,7 @@ void handle_global(void* data, wl_registry* registry,
                 item.bind(registry, name, ver);
     }
     catch(Exception)
-        Logger.log(LogLevel.error, "fatal error in registry bind");
+        Logger.error("fatal error in registry bind");
 }
 
 void handle_global_rem(void *data, wl_registry *registry, uint name) 

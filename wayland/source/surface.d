@@ -3,6 +3,9 @@ module wayland.surface;
 import wayland.display;
 import wayland.internal.core;
 import wayland.sensitive_layer;
+import wayland.logger;
+
+import std.exception;
 
 package(wayland):
 
@@ -14,7 +17,7 @@ class Surface: SurfaceInterface
     ~this()
     {
         if (m_native) {
-            Display.instance.m_window_pool.remove(m_native.c_ptr);
+            Display.instance.m_surface_pool.remove(m_native.c_ptr);
         }
     }
 
@@ -34,17 +37,20 @@ protected:
         m_native = enforce(wl_compositor_create_surface(Display.compositor), 
                             "Can't create surface");
 
-        wl_surface_add_listener(m_native.c_ptr, &surface_lsr, this);
+        wl_surface_add_listener(m_native.c_ptr, &surface_lsr, cast(void*)this);
 
         auto manager = ScaleManager.get();
         if (!manager.empty()) {
-            m_fscale = wp_fractional_scale_manager_v1_get_fractional_scale(manager.c_ptr, m_native.c_ptr);
+            m_fscale =
+                wp_fractional_scale_manager_v1_get_fractional_scale(manager.c_ptr,
+                                                                    m_native.c_ptr);
 
             if (m_fscale) 
-                wp_fractional_scale_v1_add_listener(m_fscale.c_ptr, &scale_lsr, this);
+                wp_fractional_scale_v1_add_listener(m_fscale.c_ptr,
+                                                    &scale_lsr, cast(void*)this);
         }
 
-        Display.instance.m_window_pool[m_native.c_ptr] = this;
+        Display.instance.m_surface_pool[m_native.c_ptr] = this;
     }
 
     /** 
@@ -101,7 +107,7 @@ class ScaleManager: Global
                         WP_FRACTIONAL_SCALE_MANAGER_V1_DESTROY);
 }
 
-immutable wl_surface_listener surface_lsr =
+__gshared wl_surface_listener surface_lsr =
 {
     enter: &cb_enter,
     leave: &cb_leave,
@@ -109,12 +115,12 @@ immutable wl_surface_listener surface_lsr =
     preferred_buffer_transform: &cb_preferred_buffer_transform
 };
 
-immutable wp_fractional_scale_v1_listener scale_lsr =
+__gshared wp_fractional_scale_v1_listener scale_lsr =
 {
     preferred_scale: &cb_preferred_scale
 };
 
-extern(C) nothrow @nogc {
+extern(C) nothrow {
 
 void cb_enter(void* data, wl_surface* s, wl_output* o) 
 {
@@ -138,7 +144,11 @@ void cb_preferred_scale(void* data, wp_fractional_scale_v1 *,
     auto surface = cast(Surface) data;
     float val = scale / 120;
 
-    surface.on_scale_changed(val);
+    try{
+        surface.on_scale_changed(val);
+    }
+    catch(Exception e)
+        Logger.error("Callback ScaleManager preferred_scale failed: %s", e.msg);
 };
 
 }

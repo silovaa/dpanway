@@ -9,4 +9,4 @@ subPackage "./wayland"
 dependency "panway:wayland" version="*"
 
 // Исходники самого приложения (main)
-sourcePaths "source"
+sourcePaths "source" "wayland/source"

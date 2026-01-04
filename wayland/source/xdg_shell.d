@@ -3,6 +3,9 @@ module wayland.xdg_shell_protocol;
 import wayland.internal.core;
 import wayland.surface;
 import wayland.sensitive_layer;
+import wayland.logger;
+
+import std.exception;
 
 enum XDGState
 {
@@ -23,7 +26,7 @@ public:
     this(SensitiveLayer input, uint width, uint heigh)
     {
         super(input);
-        construct(width, height);
+        construct(width, heigh);
     }
 
     final void setTitle(const (char)* title)
@@ -45,27 +48,27 @@ private:
     void construct(uint width, uint height)
     {
         auto xdg_base = XDGWmBase.get();
-        if (!xdg_base.empty()){
-            m_xdg_surfase = xdg_wm_base_get_xdg_surface(xdg_base.c_ptr, c_ptr);
-            enforce(m_xdg_surfase, "Can't create xdg surface");
-                
-            m_top = xdg_surface_get_toplevel(m_xdg_surfase.c_ptr);
-            enforce(m_top,"Can't create toplevel role");
 
-            static immutable xdg_toplevel_listener toplevel_lsr = {
+        if (!xdg_base.empty()){
+            m_xdg_surfase = enforce(xdg_wm_base_get_xdg_surface(xdg_base.c_ptr, c_ptr),
+                                    "Can't create xdg surface");
+                
+            m_top = enforce(xdg_surface_get_toplevel(m_xdg_surfase.c_ptr),
+                            "Can't create toplevel role");
+
+            __gshared xdg_toplevel_listener toplevel_lsr = {
                 configure: &cb_configure,
                 close    : &cb_close,
                 configure_bounds: &cb_configure_bounds,
                 wm_capabilities : &cb_wm_capabilities
             };
-            xdg_toplevel_add_listener(m_top.c_ptr(), 
-                                    cast(Callback*) &toplevel_lsr, this);
+            xdg_toplevel_add_listener(m_top.c_ptr(), &toplevel_lsr, cast(void*)this);
 
-            static immutable xdg_surface_listener surface_lsr = {
+            __gshared xdg_surface_listener surface_lsr = {
                 configure: &cb_xdgconfigure
             };
             xdg_surface_add_listener (m_xdg_surfase.c_ptr(), 
-                                    cast(Callback*) &surface_lsr, this);
+                                      &surface_lsr,cast(void*) this);
         }
 
         m_width  = width;
@@ -96,7 +99,7 @@ final class XDGWmBase: Global
     {
         set(reg, name, vers);
 
-        static immutable xdg_wm_base_listener listener = {
+        __gshared xdg_wm_base_listener listener = {
             ping: &cb_ping
         };
 
@@ -104,11 +107,15 @@ final class XDGWmBase: Global
     }
 }
 
-extern (C) nothrow @nogc{
+extern (C) nothrow {
 
 void cb_ping(void*, xdg_wm_base *wm_base, uint serial)
 {
-    xdg_wm_base_pong(wm_base, serial);
+    try{
+        xdg_wm_base_pong(wm_base, serial);
+    }
+    catch(Exception e)
+        Logger.error("Callback XDGWmBase ping failed: %s", e.msg);
 }
 
 void cb_configure(void* data, xdg_toplevel *tt,
@@ -134,7 +141,11 @@ void cb_configure(void* data, xdg_toplevel *tt,
 void cb_close(void *data, xdg_toplevel*)
 {
     auto inst = cast(XDGTopLevel)data;
-    inst.closed();
+    try{
+        inst.closed();
+    }
+    catch(Exception e)
+        Logger.error("Callback XDGTopLevel close failed: %s", e.msg);
 }
 
 void cb_configure_bounds(void* data, xdg_toplevel*, int32_t width, int32_t height)
@@ -147,9 +158,13 @@ void cb_wm_capabilities(void *data, xdg_toplevel *xdg_toplevel,
 void cb_xdgconfigure(void* data, xdg_surface *xdg_surf, uint32_t serial)
 {
     auto inst = cast(XDGTopLevel)data;
-    xdg_surface_ack_configure(xdg_surf, serial);
 
-    inst.configure(inst.m_width, inst.m_height, inst.m_state);
+    try{
+        xdg_surface_ack_configure(xdg_surf, serial);
+        inst.configure(inst.m_width, inst.m_height, inst.m_state);
+    }
+    catch(Exception e)
+        Logger.error("Callback XDGTopLevel configure failed: %s", e.msg);
 }
 
 }

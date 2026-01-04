@@ -8,13 +8,13 @@ enum ModSet {locked, effective, consumed}
 
 interface KeyMapper
 {
-    uint modifiers(ModSet group) const nothrow;
-    bool mayRepeats(uint key) const nothrow;
-    bool keySymbol(uint key, out uint symbol) nothrow;
+    uint modifiers(ModSet group) const;
+    bool mayRepeats(uint key);
+    bool keySymbol(uint key, out uint symbol);
     void updateMask(uint mods_depressed, //which key
                     uint mods_latched,
                     uint mods_locked,
-                    uint group) nothrow;
+                    uint group);
     int utf8(char[] buf) const;
 }
 
@@ -24,6 +24,8 @@ import std.format : format;
 import core.stdc.errno : errno;
 import core.stdc.string : strerror;
 import std.conv : to;
+
+import wayland.logger;
 
 final class XkbMapper: KeyMapper
 {
@@ -53,23 +55,27 @@ final class XkbMapper: KeyMapper
 
     void unref() nothrow
     {
-        if (kstate) xkb_state_unref(kstate);
-        if (keymap) xkb_keymap_unref(keymap);
-        if (kcontext) xkb_context_unref(kcontext);
+        try{
+            if (kstate) xkb_state_unref(kstate);
+            if (keymap) xkb_keymap_unref(keymap);
+            if (kcontext) xkb_context_unref(kcontext);
+        }
+        catch(Exception e)
+            Logger.error("fatal error on unref XkbMapper %s", e.msg);
     }
 
-    override uint modifiers(ModSet group) const nothrow
+    override uint modifiers(ModSet group) const
     {
         switch (group) {
         case ModSet.effective:
             return xkb_state_serialize_mods(
-                mapper.kstate, XKB_STATE_MODS_EFFECTIVE);
+                cast(xkb_state*)kstate, XKB_STATE_MODS_EFFECTIVE);
         case ModSet.consumed:
             return xkb_state_key_get_consumed_mods2(
-                mapper.kstate,  mapper.keycode, XKB_CONSUMED_MODE_XKB);
+                cast(xkb_state*)kstate, keycode, XKB_CONSUMED_MODE_XKB);
         case ModSet.locked:
             return xkb_state_serialize_mods(
-                mapper.kstate, XKB_STATE_MODS_LOCKED);
+                cast(xkb_state*)kstate, XKB_STATE_MODS_LOCKED);
         default:
             break;
         }
@@ -77,12 +83,12 @@ final class XkbMapper: KeyMapper
         return 0;
     }
 
-    override bool mayRepeats(uint key) const nothrow
+    override bool mayRepeats(uint key)
     {
         return xkb_keymap_key_repeats(keymap, key + 8) != 0;
     }
 
-    override bool keySymbol(uint key, out uint symbol) nothrow
+    override bool keySymbol(uint key, out uint symbol)
     {
         auto raw_key = key + 8;
         auto sym = xkb_state_key_get_one_sym(kstate, raw_key);
@@ -99,7 +105,7 @@ final class XkbMapper: KeyMapper
     }
 
     override void updateMask(uint mods_depressed, //which key
-                    uint mods_latched, uint mods_locked, uint group) nothrow
+                    uint mods_latched, uint mods_locked, uint group)
     {
         xkb_state_update_mask(kstate,
                             mods_depressed, mods_latched, mods_locked,
@@ -109,7 +115,8 @@ final class XkbMapper: KeyMapper
 
     int utf8(char[] buf) const
     {
-        return xkb_state_key_get_utf8(kstate, keycode, buf.ptr, buf.length);
+        return xkb_state_key_get_utf8(cast(xkb_state*)kstate,
+                                      keycode, buf.ptr, buf.length);
     }
 
 private:

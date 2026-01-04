@@ -8,8 +8,8 @@ preBuildCommands "chmod +x wayland_gen.sh" "./wayland_gen.sh"
 sourceFiles "c_generated/*.c" "source/internal/*.c"
 
 # 3. Настраиваем пути поиска для импорта и препроцессора
-importPaths "c_generated"
-dflags "-P-Ic_generated"
+importPaths "c_generated" "source/internal"
+dflags "-P-Ic_generated" "-P-Isource/internal"
 
 # 4. Линковка с системной библиотекой
-libs "wayland-client"
+libs "wayland-client" "xkbcommon"

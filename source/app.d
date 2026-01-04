@@ -8,7 +8,7 @@ import std.stdio;
 int main()
 {
     try {
-        auto dpy = Display.connect!(XDGTopLevel);//, XDGDecoration);
+        auto ref dpy = Display.connect!(XDGTopLevel);//, XDGDecoration);
 
         bool isrun = true;
         auto window = new Window(200, 400);

@@ -2,6 +2,7 @@ module wayland.sensitive_layer;
 
 import wayland.internal.keymapper: ModSet, KeyMapper;
 import wayland.internal.core;
+import wayland.display;
 
 alias Mods = ModSet;
 
@@ -16,7 +17,7 @@ struct Keyboard
 
     string utf8() const
     {
-        if (m_mapper && m_mapper.utf8(utf8buf) > 0)
+        if (m_mapper && m_mapper.utf8(cast(char[])utf8buf[]) > 0)
             return utf8buf;
         
         return "";
@@ -24,7 +25,7 @@ struct Keyboard
 
     uint symbol() const
     {
-        returnn m_symbol;
+        return m_symbol;
     }
 
 package(wayland):
@@ -34,13 +35,13 @@ package(wayland):
         m_mapper = key_map;
 
         Display.instance.kb_repeat = Timer((){
-            m_focused_surf.key(*this);
+            m_focused_surf.key(this);
         });
     }
 
     ~this()
     {
-        Display.instance.kb_repeat = Timer;
+        Display.instance.kb_repeat = Timer();
     }
 
     void emit_key(uint raw_key)
@@ -48,7 +49,7 @@ package(wayland):
         assert(m_focused_surf);
 
         if (m_mapper.keySymbol(raw_key, m_symbol))
-            m_focused_surf.key(*this); 
+            m_focused_surf.key(this);
     }
 
     void emit_focus(bool focused)
@@ -92,7 +93,7 @@ struct Pointer
 
 package(wayland):
     ref const(Pointer) set(wl_fixed_t new_x, wl_fixed_t new_y)
-    {x = new_x; y = new_y; return *this;}
+    {x = new_x; y = new_y; return this;}
 
     void opAssign(wl_pointer* ptr){m_native = ptr;}
 

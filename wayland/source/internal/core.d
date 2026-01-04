@@ -88,31 +88,39 @@ mixin template GlobalProxy(Self, T, alias wliface, int Destroy_code)
 private: 
     Proxy!(T, Destroy_code) m_proxy;
     
-    static ubyte[__traits(classInstanceSize, Self)] s_storage;
+    static struct Storage {
+        static ubyte[__traits(classInstanceSize, Self)] data;
+    }
 
-    static Self instance;
+    // Статический указатель на экземпляр
+    static Self* s_instance;
 
     void set(wl_registry* reg, uint name_id, uint vers)
     {
-        m_proxy = cast(T*)wl_registry_bind(reg, name_id, wliface, vers);
+        m_proxy = cast(T*)wl_registry_bind(reg, name_id, &wliface, vers);
     }
 
 public:
-    
+    import std.stdio;
+
     static Global create()
     {
         import std.conv : emplace;
+        static assert(is(Self == class), "T должен быть классом");
 
-        if (instance is null)
-            instance = emplace!(Self)(s_storage[]);
+        if (s_instance is null){
+            s_instance = cast(Self*)Storage.data.ptr;
+            emplace!Self(s_instance);
+        }
 
-        return get();
+        return cast(Global)s_instance;
     }
 
     static Self get()
     {
-        assert(instance !is null);
-        return instance;
+        if(s_instance is null)
+            writeln("instance is null ", Self.stringof, " ", Storage.data.length, " байт, реально ", Self.sizeof, " байт");
+        return *s_instance;
     }
 
     final inout(T)* c_ptr() inout
@@ -144,12 +152,11 @@ mixin template RegistryProtocols(T...)
     static void registry(Global[] reg)
     {
         alias CurrentClass = typeof(this);
-        
-        // 1. Проверка и рекурсивный вызов родителя
-        alias BaseTypes = __traits(getUnitaryBaseClasses, CurrentClass);
-        static if (BaseTypes.length > 0)
+
+        // 1. Проверяем родительский класс (для одиночного наследования)
+        static if (__traits(compiles, __traits(parent, CurrentClass)))
         {
-            alias Parent = BaseTypes[0];
+            alias Parent = __traits(parent, CurrentClass);
             static if (__traits(hasMember, Parent, "registry"))
             {
                 Parent.registry(reg);
@@ -163,12 +170,12 @@ mixin template RegistryProtocols(T...)
             {
                 // Вызываем Type.create() и проверяем, что результат — это Global
                 auto g = Type.create();
-                
-                static if (is(typeof(g) : Global)) 
+
+                static if (is(typeof(g) : Global))
                 {
                     reg ~= g;
                 }
-                else 
+                else
                 {
                     static assert(0,
                      "Type " ~ Type.stringof ~ ".create() должен возвращать Global");

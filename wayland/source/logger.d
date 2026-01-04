@@ -1,31 +1,43 @@
 module wayland.logger;
 
 import core.stdc.stdio : fprintf, stderr, vfprintf;
-
-enum LogLevel { info, error, debug_ }
+import core.stdc.stdarg : va_start, va_end, va_list;
 
 struct Logger {
-    
-static @safe nothrow @nogc:
-    void log(LogLevel level, string fmt, ...) 
+    // Прямой вывод без промежуточных строк
+    static void info(const char* fmt, ...) nothrow @nogc
     {
-        // Используем printf-подобные функции, так как они не кидают исключений
-        const char* prefix;
-        final switch (level) {
-            case LogLevel.info:   prefix = "INFO"; break;
-            case LogLevel.error:  prefix = "ERROR"; break;
-            case LogLevel.debug_: prefix = "DEBUG"; break;
-        }
-
-        import core.stdc.stdarg : va_start, va_end, va_list;
+        fprintf(stderr, "[INFO]: ");
 
         va_list args;
         va_start(args, fmt);
-        
-        fprintf(stderr, "[%s] %.*s\n", prefix);
-        vfprintf(stderr, fmt.ptr, args); // fmt должен быть C-строкой (null-terminated)
-        fprintf(stderr, "\n");
-        
+        vfprintf(stderr, fmt, args);
         va_end(args);
+
+        fprintf(stderr, "\n");
+    }
+
+    static void error(const char* fmt, ...) nothrow @nogc
+    {
+        fprintf(stderr, "[ERROR]: ");
+
+        va_list args;
+        va_start(args, fmt);
+        vfprintf(stderr, fmt, args);
+        va_end(args);
+
+        fprintf(stderr, "\n");
+    }
+
+    static void debugf(const char* fmt, ...) nothrow @nogc
+    {
+        fprintf(stderr, "[DEBUG]: ");
+
+        va_list args;
+        va_start(args, fmt);
+        vfprintf(stderr, fmt, args);
+        va_end(args);
+
+        fprintf(stderr, "\n");
     }
 }
