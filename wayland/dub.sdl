@@ -5,7 +5,7 @@ description "Wayland library implementation"
 preBuildCommands "chmod +x wayland_gen.sh" "./wayland_gen.sh"
 
 # 2. Указываем файлы для компиляции (DUB сам скомпилирует их в .obj/.o)
-sourceFiles "c_generated/*.c" 
+sourceFiles "c_generated/*.c" "source/internal/*.c"
 
 # 3. Настраиваем пути поиска для импорта и препроцессора
 importPaths "c_generated"

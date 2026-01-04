@@ -2,6 +2,8 @@ module wayland.internal.keymapper;
 
 package(wayland):
 
+import xkbmapper;
+
 enum ModSet {locked, effective, consumed}
 
 interface KeyMapper
@@ -117,23 +119,23 @@ private:
     uint keycode;
 }
 
-private extern(C){
+// private extern(C){
 
-    struct xkb_context;
-    struct xkb_keymap;
-    struct xkb_state;
+//     struct xkb_context;
+//     struct xkb_keymap;
+//     struct xkb_state;
 
-    void xkb_state_update_mask();
-    int  xkb_state_key_get_one_sym();
-    uint xkb_keymap_key_repeats();
-    uint xkb_state_serialize_mods();
-    uint xkb_state_key_get_consumed_mods2();
+//     void xkb_state_update_mask();
+//     int  xkb_state_key_get_one_sym();
+//     uint xkb_keymap_key_repeats();
+//     uint xkb_state_serialize_mods();
+//     uint xkb_state_key_get_consumed_mods2();
 
-    void xkb_state_unref();
-    void xkb_keymap_unref();
-    void xkb_context_unref();
+//     void xkb_state_unref();
+//     void xkb_keymap_unref();
+//     void xkb_context_unref();
 
-    xkb_state* xkb_state_new();
-    xkb_keymap* xkb_keymap_new_from_string();
-    xkb_context* xkb_context_new();
-}
+//     xkb_state* xkb_state_new();
+//     xkb_keymap* xkb_keymap_new_from_string();
+//     xkb_context* xkb_context_new();
+// }

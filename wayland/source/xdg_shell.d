@@ -92,7 +92,7 @@ final class XDGWmBase: Global
 {
     mixin GlobalProxy!(XDGWmBase, xdg_wm_base, xdg_wm_base_interface, XDG_WM_BASE_DESTROY);
     
-    override void bind(wl_registry *reg, uint name, uint vers) nothrow
+    override void bind(wl_registry *reg, uint name, uint vers)
     {
         set(reg, name, vers);
 
@@ -122,7 +122,7 @@ void cb_configure(void* data, xdg_toplevel *tt,
         (cast(uint32_t*) states.data)[0 .. states.size / uint32_t.sizeof];
 
     foreach (state; statesSlice) {
-            inst.m_state |= (1 << state);
+        inst.m_state |= (1 << state);
     }
 
     if (width && height){
