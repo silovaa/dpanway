@@ -1,6 +1,5 @@
 module wayland.internal.core;
 
-import core.stdc.string : strcmp;
 public import wayland_import;
 
 package(wayland):
@@ -78,8 +77,9 @@ private:
 
 interface Global
 {
-    const(char)* name() const nothrow;
-    void bind(wl_proxy *reg, uint name, uint vers) nothrow;
+    const(char)* name() const nothrow @nogc;
+    // wl_registry_bind no marked as nothrow in wayland_import
+    void bind(wl_registry *reg, uint name, uint vers);
     void dispose();
 } 
 
@@ -92,10 +92,9 @@ private:
 
     static Self instance;
 
-    void set(wl_proxy* reg, uint name_id, uint vers) nothrow
+    void set(wl_registry* reg, uint name_id, uint vers)
     {
-        m_proxy = cast(T*)wl_proxy_marshal_flags(reg,
-			 WL_REGISTRY_BIND, wliface, vers, 0, name_id, name(), vers, null);
+        m_proxy = cast(T*)wl_registry_bind(reg, name_id, wliface, vers);
     }
 
 public:
@@ -124,12 +123,12 @@ public:
         return m_proxy.c_ptr is null;
     }
 
-    final override const(char)* name() const nothrow
+    final override const(char)* name() const nothrow @nogc
     {
         return wliface.name; 
     }
 
-    override void bind(wl_proxy* reg, uint name_id, uint vers) nothrow
+    override void bind(wl_registry* reg, uint name_id, uint vers)
     {
         set(reg, name_id, vers);
     }
@@ -171,12 +170,14 @@ mixin template RegistryProtocols(T...)
                 }
                 else 
                 {
-                    static assert(0, "Type " ~ Type.stringof ~ ".create() должен возвращать Global");
+                    static assert(0,
+                     "Type " ~ Type.stringof ~ ".create() должен возвращать Global");
                 }
             }
             else
             {
-                static assert(0, "Type " ~ Type.stringof ~ " должен иметь статическую функцию create()");
+                static assert(0,
+                 "Type " ~ Type.stringof ~ " должен иметь статическую функцию create()");
             }
         }
     }

@@ -62,7 +62,7 @@ private:
                                     cast(Callback*) &toplevel_lsr, this);
 
             static immutable xdg_surface_listener surface_lsr = {
-                configure: &cb_configure
+                configure: &cb_xdgconfigure
             };
             xdg_surface_add_listener (m_xdg_surfase.c_ptr(), 
                                     cast(Callback*) &surface_lsr, this);
@@ -144,9 +144,8 @@ void cb_wm_capabilities(void *data, xdg_toplevel *xdg_toplevel,
                             wl_array *capabilities)
 {}
 
-void cb_configure(void* data, xdg_surface *xdg_surf, uint32_t serial)
+void cb_xdgconfigure(void* data, xdg_surface *xdg_surf, uint32_t serial)
 {
-
     auto inst = cast(XDGTopLevel)data;
     xdg_surface_ack_configure(xdg_surf, serial);
 

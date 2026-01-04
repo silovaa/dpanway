@@ -6,7 +6,7 @@ import std.exception;
 import std.string;
 
 import wayland.internal.core;
-import wayland_import;
+import wayland.logger;
 
 /** 
  * Статический класс для одного потока
@@ -94,7 +94,7 @@ public:
     ~this()
     {
         if (m_display) {
-            foreach(Surface surf; m_surface_pool)
+            foreach(SurfaceInterface surf; m_surface_pool)
                 surf.dispose();
             foreach(Global global; m_globals)
                 global.dispose();
@@ -102,7 +102,7 @@ public:
             m_globals.length = 0; //??
 
 	        wl_proxy_destroy(cast(wl_proxy*)m_compositor);
-	        wl_proxy_destroy(m_registry);
+	        wl_registry_destroy(m_registry);
 
 	        wl_display_disconnect(m_display);
             m_display = null;
@@ -129,9 +129,7 @@ private:
     Global[] m_globals;
     wl_display* m_display;
 
-    static immutable(wl_registry_listerner) lsr;
-
-    wl_proxy*   m_registry;  
+    wl_registry*   m_registry;  
     wl_compositor* m_compositor;
 
      enum EventT {
@@ -147,18 +145,17 @@ private:
         m_display = enforce(wl_display_connect(name), 
                             "failed to create display");
        
-	    m_registry = enforce(wl_proxy_marshal_flags(cast(wl_proxy*) wl_display,
-			                WL_DISPLAY_GET_REGISTRY, 
-                            &wl_registry_interface, 
-                            wl_proxy_get_version(cast(wl_proxy*)wl_display), 
-                            0, null),
+	    m_registry = enforce(wl_display_get_registry(m_display),
                         "failed to create registry");
 
         auto iter = GlobalIterator(m_globals);
 
-        enforce(wl_proxy_add_listener(m_registry, 
-                                    cast(Callback*) &lsr, 
-                                    &iter) >= 0,
+        __gshared wl_registry_listener lsr = {
+            global: &handle_global,
+            global_remove: &handle_global_rem
+        };
+
+        enforce(wl_registry_add_listener(m_registry, &lsr, &iter) >= 0,
                 "add registry listener failed");
 
         if (wl_display_roundtrip(m_display) < 0) 
@@ -233,6 +230,8 @@ private:
 // Display impl
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
+import core.stdc.string : strcmp;
+
 struct GlobalIterator
 {
     this(Global[] protocols)
@@ -242,7 +241,7 @@ struct GlobalIterator
 
     wl_compositor* compositor;
 
-    bool find_compositor(const char* str) nothrow
+    bool find_compositor(const char* str) nothrow 
     {
         if (!compositor && (strcmp(str, wl_compositor_interface.name) == 0))
             return true;
@@ -253,7 +252,7 @@ struct GlobalIterator
     Global[] m_protocols;
     int index;
 
-    Global find(const(char)* str) nothrow
+    Global find(const(char)* str) nothrow @nogc
     {
         for(size_t i = index; i < m_protocols.length; ++i) {
             if (strcmp(str, m_protocols[i].name()) == 0){
@@ -273,62 +272,31 @@ struct GlobalIterator
     }
 }
 
-extern (C) {
+extern (C) nothrow {
 
-    struct wl_registry_listerner
-    {
-        void function (void* data,
-                       wl_proxy* wl_registry,
-                       uint name,
-                       const(char)* iface,
-                       uint ver) global = &handle_global;
-  
-        void function (void *data,
-                       wl_proxy *wl_registry,
-                       uint name) global_remove = &handle_global_rem;
-    }
-
-    void handle_global(void* data, wl_proxy* registry,
-		               uint name, const(char)* iface, uint ver) 
-    {
+void handle_global(void* data, wl_registry* registry,
+                    uint name, const(char)* iface, uint ver) 
+{
+    try{
         auto iter = cast(GlobalIterator*) data;
 
         if (iter.find_compositor(iface))
             iter.compositor =
-                cast(wl_compositor*)wl_proxy_marshal_flags(wl_registry,
-			        WL_REGISTRY_BIND, &wl_compositor_interface, ver, 0, name, iface, ver, null);
+                cast(wl_compositor*)wl_registry_bind(registry, name, 
+                                                    &wl_compositor_interface, ver);
 
         else
             if (auto item = iter.find(iface))
                 item.bind(registry, name, ver);
     }
+    catch(Exception)
+        Logger.log(LogLevel.error, "fatal error in registry bind");
+}
 
-    void handle_global_rem(void *data, wl_proxy *registry, uint name) 
-    {
-        //writeln("handle_global_rem");
-    }
-
-    //struct wl_display;
-    //struct wl_compositor; 
-    // wl_display* wl_display_connect(const(char)* name);
-    // int wl_display_get_fd(wl_display*);
-    // int wl_display_dispatch(wl_display*);
-    // int wl_display_dispatch_pending(wl_display*);
-    // int wl_display_flush(wl_display*);
-    // int wl_display_roundtrip(wl_display*);
-    // void wl_display_disconnect(wl_display*);
-
-    // enum uint WL_DISPLAY_SYNC = 0;
-    // enum uint WL_DISPLAY_GET_REGISTRY = 1;
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Surface impl
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    // struct wl_surface;
-    // struct wp_fractional_scale_v1;
-
-    // extern __gshared wl_interface wp_fractional_scale_manager_v1_interface;
+void handle_global_rem(void *data, wl_registry *registry, uint name) 
+{
+    //writeln("handle_global_rem");
+}
 }
 
 

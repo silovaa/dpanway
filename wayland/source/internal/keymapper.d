@@ -1,6 +1,6 @@
 module wayland.internal.keymapper;
 
-//package:
+package(wayland):
 
 enum ModSet {locked, effective, consumed}
 

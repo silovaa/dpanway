@@ -16,14 +16,14 @@ package(wayland):
 protected:
     mixin GlobalProxy!(Seat, wl_seat, wl_seat_interface, WL_SEAT_RELEASE);
 
-    override void bind(wl_proxy* reg, uint name_id, uint vers) nothrow
+    override void bind(wl_registry* reg, uint name_id, uint vers) 
     {
         set(reg, name_id, vers); 
 
         if (wl_seat_add_listener(c_ptr(), 
                                 cast(Callback*) &seat_listener, 
                                 this) < 0)
-            Logger.log(Logger.error, "failed to add seat listener");
+            Logger.log(LogLevel.error, "failed to add seat listener");
     }
 
     override void dispose() 

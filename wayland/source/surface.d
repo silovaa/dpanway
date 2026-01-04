@@ -89,8 +89,6 @@ private:
               WP_FRACTIONAL_SCALE_V1_DESTROY) m_fscale;
               
     SensitiveLayer input_handler;
-     
-    static immutable(WpFractionalScaleV1Listener) scale_lsr;
 }
 
 private:
