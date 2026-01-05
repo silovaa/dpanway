@@ -159,7 +159,8 @@ private:
 
         if (wl_display_roundtrip(m_display) < 0) 
 		    throw new Exception("wl_display_roundtrip() failed");
-
+        
+        wl_display_roundtrip(m_display);
         m_compositor = enforce(iter.compositor, 
 		                    "compositor doesn't support wl_compositor");
 
@@ -231,7 +232,7 @@ import core.stdc.string : strcmp;
 struct GlobalIterator
 {
     this(Global[] protocols)
-    {
+    {Logger.info("this %i", protocols.length);
         m_protocols = protocols;
     }
 
@@ -249,7 +250,7 @@ struct GlobalIterator
     int index;
 
     Global find(const(char)* str) nothrow @nogc
-    {
+    { 
         for(size_t i = index; i < m_protocols.length; ++i) {
             if (strcmp(str, m_protocols[i].name()) == 0){
                 auto res = m_protocols[i];

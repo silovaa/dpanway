@@ -29,10 +29,10 @@ public:
         construct(width, heigh);
     }
 
-    final void setTitle(const (char)* title)
+    final void setTitle(const(char)* title)
     {xdg_toplevel_set_title(m_top.c_ptr(), title);}
 
-    final void setAppID(const (char)* id)
+    final void setAppID(const(char)* id)
     {xdg_toplevel_set_app_id(m_top.c_ptr(), id);}
 
     // final inout(xdg_toplevel)* c_ptr() inout
@@ -69,6 +69,8 @@ private:
             };
             xdg_surface_add_listener (m_xdg_surfase.c_ptr(), 
                                       &surface_lsr,cast(void*) this);
+            
+            commit();
         }
 
         m_width  = width;
@@ -91,13 +93,11 @@ protected:
 
 private:
 
-final class XDGWmBase: Global
-{
-    mixin GlobalProxy!(XDGWmBase, xdg_wm_base, xdg_wm_base_interface, XDG_WM_BASE_DESTROY);
-    
+final class XDGWmBase: GlobalProxy!(XDGWmBase, xdg_wm_base, xdg_wm_base_interface, XDG_WM_BASE_DESTROY)
+{   
     override void bind(wl_registry *reg, uint name, uint vers)
     {
-        set(reg, name, vers);
+        super.bind(reg, name, vers);
 
         __gshared xdg_wm_base_listener listener = {
             ping: &cb_ping

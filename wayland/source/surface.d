@@ -99,13 +99,12 @@ private:
 
 private:
 
-class ScaleManager: Global
-{ 
-    mixin GlobalProxy!(ScaleManager,
+class ScaleManager: GlobalProxy!(ScaleManager,
                         wp_fractional_scale_manager_v1,
                         wp_fractional_scale_manager_v1_interface,
-                        WP_FRACTIONAL_SCALE_MANAGER_V1_DESTROY);
-}
+                        WP_FRACTIONAL_SCALE_MANAGER_V1_DESTROY)
+{} 
+
 
 __gshared wl_surface_listener surface_lsr =
 {
@@ -142,8 +141,8 @@ void cb_preferred_scale(void* data, wp_fractional_scale_v1 *,
                         uint scale)
 {
     auto surface = cast(Surface) data;
-    float val = scale / 120;
-
+    float val = scale / 120.0f;
+    
     try{
         surface.on_scale_changed(val);
     }

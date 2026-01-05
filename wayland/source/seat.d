@@ -8,17 +8,15 @@ import wayland.internal.keymapper;
 import wayland.surface;
 import wayland.sensitive_layer;
 
-final class Seat: Global
+final class Seat: GlobalProxy!(Seat, wl_seat, wl_seat_interface, WL_SEAT_RELEASE)
 {
 package(wayland):
     mixin RegistryProtocols!Seat;
 
 protected:
-    mixin GlobalProxy!(Seat, wl_seat, wl_seat_interface, WL_SEAT_RELEASE);
-
     override void bind(wl_registry* reg, uint name_id, uint vers) 
     {
-        set(reg, name_id, vers); 
+        super.bind(reg, name_id, vers); 
 
         if (wl_seat_add_listener(c_ptr(), &seat_listener, cast(void*)this) < 0)
             Logger.error("failed to add seat listener");
@@ -28,7 +26,7 @@ protected:
     {
         m_keyboard = Keyboard();
         m_pointer  = null;
-        m_proxy = null;
+        super.dispose();
     }
 
     Keyboard m_keyboard;

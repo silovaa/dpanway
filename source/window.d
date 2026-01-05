@@ -4,6 +4,7 @@ import std.stdio;
 
 //import wayland.core;
 import wayland.xdg_shell_protocol;
+import wayland.logger;
 // import egl;
 // import opengl.gl3; 
 
@@ -41,7 +42,7 @@ writeln("Window Dtor");
         //     m_egl.createSurface(m_egl_window);
         // }
 
-        writeln("Window configure ");
+        writeln("Window configure ", w, " ", h, " ", s);
     }
 
     void delegate() onClosed;
@@ -53,7 +54,8 @@ writeln("Window Dtor");
 
     override void on_scale_changed(float factor)
     {
-writeln("Window on_scale_changed ");
+//Logger.info("Window on_scale_changed %f", factor);
+writeln("scale ", factor);
     }
 
     // override void draw() nothrow

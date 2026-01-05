@@ -2,6 +2,8 @@ module wayland.internal.core;
 
 public import wayland_import;
 
+import wayland.logger;
+
 package(wayland):
 
 // immutable class WlInterface
@@ -83,44 +85,47 @@ interface Global
     void dispose();
 } 
 
-mixin template GlobalProxy(Self, T, alias wliface, int Destroy_code)
+class GlobalProxy(Self, T, alias wliface, int Destroy_code): Global
 {
 private: 
     Proxy!(T, Destroy_code) m_proxy;
     
-    static struct Storage {
-        static ubyte[__traits(classInstanceSize, Self)] data;
-    }
+    // static struct Storage {
+    //     static ubyte[__traits(classInstanceSize, Self)] data;
+    // }
 
     // Статический указатель на экземпляр
-    static Self* s_instance;
+    static Self s_instance;
 
-    void set(wl_registry* reg, uint name_id, uint vers)
-    {
-        m_proxy = cast(T*)wl_registry_bind(reg, name_id, &wliface, vers);
-    }
+    // void set(wl_registry* reg, uint name_id, uint vers)
+    // {
+    //     m_proxy = cast(T*)wl_registry_bind(reg, name_id, &wliface, vers);
+    // }
 
 public:
     import std.stdio;
 
     static Global create()
     {
-        import std.conv : emplace;
-        static assert(is(Self == class), "T должен быть классом");
+        //import std.conv : emplace;
+        //static assert(is(Self == class), "T должен быть классом");
 
         if (s_instance is null){
-            s_instance = cast(Self*)Storage.data.ptr;
-            emplace!Self(s_instance);
+            // s_instance = cast(Self*)Storage.data.ptr;
+            // emplace!Self(s_instance);
+            s_instance = new Self;
+
+            writeln("instance create ", Self.stringof);
         }
 
-        return cast(Global)s_instance;
+        return s_instance;
     }
 
     static Self get()
     {
         if(s_instance is null)
-            writeln("instance is null ", Self.stringof, " ", Storage.data.length, " байт, реально ", Self.sizeof, " байт");
-        return *s_instance;
+            writeln("instance is null ", Self.stringof);
+        return s_instance;
     }
 
     final inout(T)* c_ptr() inout
@@ -138,7 +143,7 @@ public:
 
     override void bind(wl_registry* reg, uint name_id, uint vers)
     {
-        set(reg, name_id, vers);
+        m_proxy = cast(T*)wl_registry_bind(reg, name_id, &wliface, vers);
     }
 
     override void dispose()
@@ -149,18 +154,12 @@ public:
 
 mixin template RegistryProtocols(T...)
 {
-    static void registry(Global[] reg)
+    static void registry(out Global[] reg)
     {
-        alias CurrentClass = typeof(this);
-
-        // 1. Проверяем родительский класс (для одиночного наследования)
-        static if (__traits(compiles, __traits(parent, CurrentClass)))
+        alias Parent = typeof(super);
+        static if (__traits(hasMember, Parent, "registry"))
         {
-            alias Parent = __traits(parent, CurrentClass);
-            static if (__traits(hasMember, Parent, "registry"))
-            {
-                Parent.registry(reg);
-            }
+            Parent.registry(reg);
         }
 
         // 2. Итерация по типам T и вызов их статических методов create
