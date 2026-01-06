@@ -2,14 +2,24 @@ name "wayland"
 targetType "library"
 description "Wayland library implementation"
 
-preBuildCommands "chmod +x wayland_gen.sh" "./wayland_gen.sh"
+configuration "library" {
+   
+    preBuildCommands "./wayland_gen.sh core"
+}
+
+configuration "egl" {
+    libs "wayland-egl"
+    versions "WaylandEGL"
+    # Передаем 'egl' как первый аргумент
+    preBuildCommands "./wayland_gen.sh egl"
+}
 
 # 2. Указываем файлы для компиляции (DUB сам скомпилирует их в .obj/.o)
-sourceFiles "c_generated/*.c" "source/internal/*.c"
+sourceFiles "c_generated/*.c" 
 
 # 3. Настраиваем пути поиска для импорта и препроцессора
-importPaths "c_generated" "source/internal"
-dflags "-P-Ic_generated" "-P-Isource/internal"
+importPaths "c_generated" 
+dflags "-P-Ic_generated" 
 
 # 4. Линковка с системной библиотекой
 libs "wayland-client" "xkbcommon"

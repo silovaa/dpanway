@@ -6,7 +6,10 @@ description "Главное приложение"
 subPackage "./wayland"
 
 // Зависеть от этого подпакета
-dependency "panway:wayland" version="*"
+dependency ":wayland" version="*"
+subConfiguration ":wayland" "egl"
 
 // Исходники самого приложения (main)
-sourcePaths "source" "wayland/source"
+//sourcePaths "source" "wayland/source"
+
+importPaths "wayland/source"

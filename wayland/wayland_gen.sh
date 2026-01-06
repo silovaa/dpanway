@@ -1,9 +1,14 @@
 #!/bin/bash
 
+cd "$(dirname "$0")"
+
 # Настройки путей
 OUT_DIR="c_generated"
 PROTO_BASE="/usr/share/wayland-protocols"  # Основной системный путь
 PROTO_DIR="xml_protocols"                  # Дополнительный путь проекта
+
+# Параметр из dub.sdl (core или egl)
+MODE=${1:-"core"} 
 
 # Список имен протоколов (только ИМЯ без расширения xml)
 PROTOCOLS=(
@@ -15,6 +20,12 @@ mkdir -p "$OUT_DIR"
 
 IMPORT_FILE="$OUT_DIR/wayland_import.c"
 echo '#include <wayland-client.h>' > "$IMPORT_FILE"
+
+if [ "$MODE" == "egl" ]; then
+    echo "🔹 Режим EGL: добавляем расширенные протоколы"
+   # PROTOCOLS+=("linux-dmabuf-unstable-v1" "presentation-time")
+    echo '#include <wayland-egl.h>' >> "$IMPORT_FILE"
+fi
 
 # Функция поиска файла
 find_xml() {
