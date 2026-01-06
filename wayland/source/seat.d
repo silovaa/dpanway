@@ -78,20 +78,27 @@ __gshared wl_pointer_listener pointer_listener = {
     axis_relative_direction: &cb_axis_relative_direction    //since 9
 };
 
-extern(C) nothrow{
+extern(C) nothrow {
 
 import std.format: format;
+
+// wl_pointer* wl_seat_get_pointer(wl_seat*) @nogc;
+// int wl_pointer_add_listener(wl_pointer*, wl_pointer_listener*, void*) @nogc;
+// wl_keyboard* wl_seat_get_keyboard(wl_seat*) @nogc;
+// int wl_keyboard_add_listener(wl_keyboard*, wl_keyboard_listener*, void*) @nogc;
 
 void cb_capabilities(void* data, wl_seat* wlseat, uint flags)
 {
     auto seat = cast(Seat) data;
 
 //To do проверить добавление второй мыши и клавиатуры
-    try{
+    //try{
         if ((flags & WL_SEAT_CAPABILITY_POINTER) != 0) {
-            wl_pointer* pointer = wl_seat_get_pointer(wlseat);
+            auto pointer = cast(wl_pointer*)wl_proxy_marshal_flags(wlseat, WL_SEAT_GET_POINTER, 
+                            &wl_pointer_interface, wl_proxy_get_version(cast(wl_proxy*) wl_seat), 0, NULL);
             seat.m_pointer = pointer;
-            if (wl_pointer_add_listener(pointer, &pointer_listener, data) < 0)
+            if (wl_pointer_add_listener(pointer, &pointer_listener, data) wl_proxy_add_listener(cast(wl_proxy*) wl_pointer,
+				     (void (**)(void)) &pointer_listener, data);< 0)
                 Logger.error("failed to add pointer listener");
         }
         else {
@@ -106,11 +113,11 @@ void cb_capabilities(void* data, wl_seat* wlseat, uint flags)
         }
         else {
             //seat.m_focused_surf = null;
-            seat.m_keyboard = Keyboard();
+            seat.m_keyboard.reset();
         }
-    }
-    catch(Exception e)
-        Logger.error("Callback seat capabilities failed: %s", e.msg);
+    //}
+    //catch(Exception e)
+    //    Logger.error("Callback seat capabilities failed: %s", e.msg);
 }
 
 void cb_name(void*, wl_seat*, const(char)* name)

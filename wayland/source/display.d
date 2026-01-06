@@ -193,7 +193,7 @@ struct Timer
                            TFD_CLOEXEC | TFD_NONBLOCK);
     }
 
-    ~this()
+    ~this() nothrow @nogc
     {
         int fd = Display.instance.m_fds[Display.EventT.key].fd;
         if (fd >= 0){
@@ -202,7 +202,7 @@ struct Timer
         }
     }
 
-    void set_time(ref itimerspec tspec) const nothrow
+    void set_time(ref itimerspec tspec) const nothrow @nogc
     {
         auto fd = Display.instance.m_fds[Display.EventT.key].fd;
         timerfd_settime(fd, 0, &tspec, null);
