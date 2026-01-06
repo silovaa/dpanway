@@ -37,12 +37,6 @@ package(wayland):
 //     return a is b || strcmp(a.m_native.name, b.m_native.name) == 0;
 // }
 
-extern(C) nothrow @nogc {
-    wl_proxy* wl_proxy_marshal_flags(wl_proxy*, uint32_t, wl_interface*,
-		       uint32_t, uint32_t, ...);
-    uint wl_proxy_get_version(wl_proxy*);
-}
-
 nothrow @nogc struct Proxy (T, int Destroy_code) 
 {
     this(T* p) {m_ptr = p;}
@@ -193,4 +187,12 @@ mixin template RegistryProtocols(T...)
             }
         }
     }
+}
+
+extern(C) nothrow @nogc {
+    wl_proxy* wl_proxy_marshal_flags(wl_proxy*, uint32_t, wl_interface*,
+		       uint32_t, uint32_t, ...);
+    uint wl_proxy_get_version(wl_proxy*);
+    alias Callback = void function();
+    int wl_proxy_add_listener(wl_proxy*, Callback*, void*);
 }

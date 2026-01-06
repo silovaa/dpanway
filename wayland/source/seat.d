@@ -82,14 +82,6 @@ extern(C) nothrow {
 
 import std.format: format;
 
-alias Callback = void function();
-int wl_proxy_add_listener(wl_proxy*, Callback*, void*) @nogc;
-
-// wl_pointer* wl_seat_get_pointer(wl_seat*) @nogc;
-// int wl_pointer_add_listener(wl_pointer*, wl_pointer_listener*, void*) @nogc;
-// wl_keyboard* wl_seat_get_keyboard(wl_seat*) @nogc;
-// int wl_keyboard_add_listener(wl_keyboard*, wl_keyboard_listener*, void*) @nogc;
-
 void cb_capabilities(void* data, wl_seat* wlseat, uint flags) @nogc
 {
     auto seat = cast(Seat) data;
