@@ -50,6 +50,7 @@ writeln("Window Dtor");
     override void closed()
     {
         if (onClosed) onClosed();
+        writeln("Window closed");
     }
 
     override void on_scale_changed(float factor)

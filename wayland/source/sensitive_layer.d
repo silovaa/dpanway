@@ -103,7 +103,7 @@ package(wayland):
     ref const(Pointer) set(wl_fixed_t new_x, wl_fixed_t new_y)
     {x = new_x; y = new_y; return this;}
 
-    void opAssign(wl_pointer* ptr) nothrow {m_native = ptr;}
+    void opAssign(wl_pointer* ptr) nothrow @nogc {m_native = ptr;}
 
 private:
     Proxy!(wl_pointer, WL_POINTER_RELEASE) m_native;

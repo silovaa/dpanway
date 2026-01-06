@@ -82,45 +82,47 @@ extern(C) nothrow {
 
 import std.format: format;
 
+alias Callback = void function();
+int wl_proxy_add_listener(wl_proxy*, Callback*, void*) @nogc;
+
 // wl_pointer* wl_seat_get_pointer(wl_seat*) @nogc;
 // int wl_pointer_add_listener(wl_pointer*, wl_pointer_listener*, void*) @nogc;
 // wl_keyboard* wl_seat_get_keyboard(wl_seat*) @nogc;
 // int wl_keyboard_add_listener(wl_keyboard*, wl_keyboard_listener*, void*) @nogc;
 
-void cb_capabilities(void* data, wl_seat* wlseat, uint flags)
+void cb_capabilities(void* data, wl_seat* wlseat, uint flags) @nogc
 {
     auto seat = cast(Seat) data;
 
-//To do проверить добавление второй мыши и клавиатуры
-    //try{
-        if ((flags & WL_SEAT_CAPABILITY_POINTER) != 0) {
-            auto pointer = cast(wl_pointer*)wl_proxy_marshal_flags(wlseat, WL_SEAT_GET_POINTER, 
-                            &wl_pointer_interface, wl_proxy_get_version(cast(wl_proxy*) wl_seat), 0, NULL);
-            seat.m_pointer = pointer;
-            if (wl_pointer_add_listener(pointer, &pointer_listener, data) wl_proxy_add_listener(cast(wl_proxy*) wl_pointer,
-				     (void (**)(void)) &pointer_listener, data);< 0)
-                Logger.error("failed to add pointer listener");
-        }
-        else {
-            //seat.m_hovered_surf = null;
-            seat.m_pointer = null;
-        }
+    int seat_vers = wl_proxy_get_version(cast(wl_proxy*) wlseat);
 
-        if ((flags &  WL_SEAT_CAPABILITY_KEYBOARD) != 0){
-            wl_keyboard* kb = wl_seat_get_keyboard(wlseat);
-            if (wl_keyboard_add_listener(kb, &keyboard_listener, data) < 0)
-                Logger.error("failed to add keyboard listener");
-        }
-        else {
-            //seat.m_focused_surf = null;
-            seat.m_keyboard.reset();
-        }
-    //}
-    //catch(Exception e)
-    //    Logger.error("Callback seat capabilities failed: %s", e.msg);
+    if ((flags & WL_SEAT_CAPABILITY_POINTER) != 0) {
+        auto pointer = cast(wl_pointer*)wl_proxy_marshal_flags(cast(wl_proxy*) wlseat, WL_SEAT_GET_POINTER, 
+                        &wl_pointer_interface, seat_vers, 0, null);
+        seat.m_pointer = pointer;
+        if (wl_proxy_add_listener(cast(wl_proxy*) pointer,
+                                    cast(Callback*) &pointer_listener, data) < 0)
+            Logger.error("failed to add pointer listener");
+    }
+    else {
+        //seat.m_hovered_surf = null;
+        seat.m_pointer = null;
+    }
+
+    if ((flags &  WL_SEAT_CAPABILITY_KEYBOARD) != 0){
+        auto kb = cast(wl_keyboard*)wl_proxy_marshal_flags(cast(wl_proxy*) wlseat, WL_SEAT_GET_KEYBOARD, 
+                        &wl_keyboard_interface, seat_vers, 0, null);
+        if (wl_proxy_add_listener(cast(wl_proxy*) kb,
+                                    cast(Callback*) &keyboard_listener, data) < 0)
+            Logger.error("failed to add keyboard listener");
+    }
+    else {
+        //seat.m_focused_surf = null;
+        seat.m_keyboard.reset();
+    }
 }
 
-void cb_name(void*, wl_seat*, const(char)* name)
+void cb_name(void*, wl_seat*, const(char)* name) @nogc
 {
     Logger.info("Seat connected, name: %s", name);
 } 
