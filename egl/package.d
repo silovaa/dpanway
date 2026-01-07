@@ -1,0 +1,3 @@
+module egl;
+
+version(wayland)

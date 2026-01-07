@@ -1,0 +1,15 @@
+name "egl"
+targetType "sourceLibrary"
+description "simply egl wrapper"
+
+configuration "wayland" {
+    sourceFiles "egl_wayland_import.c"
+}
+
+ configuration "x11" {
+    sourceFiles "egl_x11_import.c"
+}
+
+dflags "-P-Isource" 
+
+libs "egl" 
