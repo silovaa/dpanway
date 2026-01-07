@@ -7,3 +7,6 @@ public import wayland.logger;
 //wayland protocols
 public import wayland.seat;
 public import wayland.xdg_shell;
+
+version(WaylandEGL):
+public import wayland.egl_window;
