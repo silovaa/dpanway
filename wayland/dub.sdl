@@ -2,6 +2,8 @@ name "wayland"
 targetType "library"
 description "Wayland library implementation"
 
+targetPath "/tmp/dub/lib"
+
 configuration "library" {
    
     preBuildCommands "./wayland_gen.sh core"
@@ -23,3 +25,6 @@ dflags "-P-Ic_generated"
 
 # 4. Линковка с системной библиотекой
 libs "wayland-client" "xkbcommon"
+
+#sourcePaths "source"
+importPaths "." "source"

@@ -1,6 +1,7 @@
-import wayland.display;
-import wayland.xdg_shell_protocol;
-import wayland.logger;
+//import wayland.display;
+//import wayland.xdg_shell_protocol;
+//import wayland.logger;
+import wayland;
 
 import window;
 

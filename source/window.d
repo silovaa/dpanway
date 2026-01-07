@@ -3,8 +3,8 @@ module window;
 import std.stdio;
 
 //import wayland.core;
-import wayland.xdg_shell_protocol;
-import wayland.logger;
+//import wayland.xdg_shell_protocol;
+import wayland;
 // import egl;
 // import opengl.gl3; 
 
