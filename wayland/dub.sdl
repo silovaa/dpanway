@@ -9,11 +9,13 @@ configuration "library" {
     preBuildCommands "./wayland_gen.sh core"
 }
 
-configuration "egl" {
-    libs "wayland-egl"
+configuration "egl" {   
     versions "WaylandEGL"
-    # Передаем 'egl' как первый аргумент
+
     preBuildCommands "./wayland_gen.sh egl"
+
+    dependency ":egl" version="*"
+    libs "wayland-egl"
 }
 
 # 2. Указываем файлы для компиляции (DUB сам скомпилирует их в .obj/.o)
