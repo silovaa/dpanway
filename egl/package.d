@@ -34,62 +34,54 @@ struct DisplayExt(string tag)
             eglTerminate(m_Display);
     }
 
+    static EGLConfig choose_config(const(uint)[] configAttribs)
+    {
+        EGLint numConfigs;
+        EGLConfig config;
+
+        enforce(eglChooseConfig(get(), configAttribs.ptr, &config, 1, &numConfigs) == 0,
+                "Could not create choose config!");
+
+        return config;
+    }
+
 private:
     static EGLDisplay m_display = EGL_NO_DISPLAY;
+
+    static m_display get()
+    {
+        assert (m_display != EGL_NO_DISPLAY, "m_display is not initialized");
+        return m_display;
+    }
 
     //static Display s_inst;
 }
 
-alias Display = DisplayExt!null;
-
-struct Context
+struct ContextExt(string tag)
 {
-    this(string tag)(const(uint)[] configAttribs, const(uint)[] contextAttribs)
+    this(EGLConfig cfg, const(uint)[] contextAttribs)
     {
-        config(DisplayExt!tag.m_display, configAttribs, contextAttribs);    
-    }
-
-    this(const(uint)[] configAttribs, const(uint)[] contextAttribs)
-    {
-        config(Display.m_display, configAttribs, contextAttribs);
+        m_context = eglCreateContext(DisplayExt!tag.get(), cfg, nullptr, contextAttribs.ptr);
+        enforse(m_context, "Could not create context!");
     }
 
     @disable this(this);
 
     ~this()
     {
-        
+        eglDestroyContext(DisplayExt!tag.get(), m_EGLContext);
     }
 
 private:
     EGLContext m_context;
-    EGLSurface m_surface;
-
-    void config(EGLDisplay dpy, const(uint)[] configAttribs, const(uint)[] contextAttribs)
-    {
-
-    }
 }
 
-struct Config
-{
-    this(string tag)(const(uint)[] configAttribs)
-    {
-        construct(DisplayExt!tag.m_display, configAttribs);    
-    }
+alias Display = DisplayExt!null;
+alias Context = Context!null;
 
-    this(const(uint)[] configAttribs)
-    {
-        construct(Display.m_display, configAttribs);
-    }
+struct Surface
+{
 
 private:
-    EGLConfig m_config;
-
-    void construct(EGLDisplay dpy, const(uint)[] configAttribs)
-    {
-        EGLint numConfigs;
-        enforce(eglChooseConfig(dpy, configAttribs.ptr, &m_config, 1, &numConfigs) == 0,
-                "Could not create choose config!");
-    }
+    EGLSurface m_surface;
 }
