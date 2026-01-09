@@ -34,25 +34,36 @@ struct DisplayExt(string tag)
             eglTerminate(m_Display);
     }
 
-    static EGLConfig choose_config(const(uint)[] configAttribs)
+    static EGLDisplay c_ptr()
+    {
+        assert (m_display != EGL_NO_DISPLAY, "m_display is not initialized");
+        return m_display;
+    }
+
+    static EGLConfig chooseConfig(const(uint)[] configAttribs)
     {
         EGLint numConfigs;
         EGLConfig config;
 
-        enforce(eglChooseConfig(get(), configAttribs.ptr, &config, 1, &numConfigs) == 0,
+        enforce(eglChooseConfig(c_ptr(), configAttribs.ptr, &config, 1, &numConfigs) == 0,
                 "Could not create choose config!");
 
         return config;
     }
 
+    static EGLContext createContext(EGLConfig cfg, const(uint)[] contextAttribs)
+    {
+        return enforse(eglCreateContext(c_ptr, cfg, null, contextAttribs.ptr),
+                     "Could not create context!");
+    }
+
+    static EGLSurface createWindowSurface(EGLConfig cfg, void* native_window)
+    {
+
+    }
+
 private:
     static EGLDisplay m_display = EGL_NO_DISPLAY;
-
-    static m_display get()
-    {
-        assert (m_display != EGL_NO_DISPLAY, "m_display is not initialized");
-        return m_display;
-    }
 
     //static Display s_inst;
 }
