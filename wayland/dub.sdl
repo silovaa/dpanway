@@ -14,7 +14,8 @@ configuration "egl" {
 
     preBuildCommands "./wayland_gen.sh egl"
 
-    dependency "egl" path="../../egl"
+    dependency "egl" path="../egl"
+    #dflags "-P-I../egl/source"
     libs "wayland-egl"
 }
 

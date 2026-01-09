@@ -93,19 +93,20 @@ public:
 
     static ~this()
     {
-        if (m_display) {
-            foreach(SurfaceInterface surf; m_surface_pool)
+        auto ref dpy = Display.instance;
+        if (dpy.m_display) {
+            foreach(SurfaceInterface surf; dpy.m_surface_pool)
                 surf.dispose();
-            foreach(Global global; m_globals)
+            foreach(Global global; dpy.m_globals)
                 global.dispose();
 
-            m_globals.length = 0; //??
+            //m_globals.length = 0; //??
 
-	        wl_proxy_destroy(cast(wl_proxy*)m_compositor);
-	        wl_registry_destroy(m_registry);
+	        wl_proxy_destroy(cast(wl_proxy*)dpy.m_compositor);
+	        wl_registry_destroy(dpy.m_registry);
 
-	        wl_display_disconnect(m_display);
-            m_display = null;
+	        wl_display_disconnect(dpy.m_display);
+            //m_display = null;
         }
     }
 

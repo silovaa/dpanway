@@ -83,7 +83,7 @@ alias Display = DisplayTag!null;
  */
 struct WindowContextES3
 {
-    this(void* native_window, uint sampleCount, uint stencilSize = 8)
+    this(void* native_window, uint sampleCount = 4, uint stencilSize = 8)
     {
         auto display = Display.instance;
 

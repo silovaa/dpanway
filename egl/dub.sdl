@@ -2,7 +2,7 @@ name "egl"
 targetType "sourceLibrary"
 description "simply egl wrapper"
 
-sourceFiles "egl_import.c"
-dflags "-P-Isource" 
+sourceFiles "source/egl_import.c"
+dflags "-P-Isource"
 
 libs "egl" 

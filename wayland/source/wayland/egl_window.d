@@ -23,6 +23,7 @@ struct EGLWindowContext
     this(Surface surface, uint width, uint height)
     {
         m_c_ptr = wl_egl_window_create(surface.c_ptr, width, height);
+        m_context = WindowContextES3(cast(void*)surface.c_ptr);
     }
 
     ~this() 
@@ -40,4 +41,5 @@ struct EGLWindowContext
 
 private:
     wl_egl_window* m_c_ptr;
+    WindowContextES3 m_context;
 }

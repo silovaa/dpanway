@@ -5,17 +5,17 @@ import std.stdio;
 //import wayland.core;
 //import wayland.xdg_shell_protocol;
 import wayland;
-import egl;
+//import egl;
 // import opengl.gl3; 
 
-auto ref dpy = wayland.Display.connect!(XDGTopLevel);//, XDGDecoration);
-auto ref egl_dpy = egl.Display.initialize(EGL_PLATFORM_WAYLAND_EXT, cast(void*)dpy.c_ptr);
+auto ref dpy = egl_connect!(XDGTopLevel);//, XDGDecoration);
 
 class Window: XDGTopLevel
 {
     this (uint wigth, uint height)
     {
         super(wigth, height);
+        m_context = EGLWindowContext(this);
         // m_width = wigth;
         // m_height = height;
         writeln("Window Ctor");
@@ -44,6 +44,8 @@ writeln("Window Dtor");
         //     m_egl_window = wl_egl_window_create(m_surface, w, h);
         //     m_egl.createSurface(m_egl_window);
         // }
+        
+        m_context.resize(w, h);
 
         writeln("Window configure ", w, " ", h, " ", s);
     }
@@ -85,7 +87,8 @@ writeln("scale ", factor);
     //     m_egl_window = null;
     // }
 
-// private:
+private:
+    EGLWindowContext m_context;
 //     EglWaylandClient m_egl;
 //     Wl_egl_window* m_egl_window;
 }
