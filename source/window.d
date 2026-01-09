@@ -5,8 +5,11 @@ import std.stdio;
 //import wayland.core;
 //import wayland.xdg_shell_protocol;
 import wayland;
-// import egl;
+import egl;
 // import opengl.gl3; 
+
+auto ref dpy = wayland.Display.connect!(XDGTopLevel);//, XDGDecoration);
+auto ref egl_dpy = egl.Display.initialize(EGL_PLATFORM_WAYLAND_EXT, cast(void*)dpy.c_ptr);
 
 class Window: XDGTopLevel
 {

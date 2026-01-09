@@ -91,7 +91,7 @@ public:
         }
     }
 
-    ~this()
+    static ~this()
     {
         if (m_display) {
             foreach(SurfaceInterface surf; m_surface_pool)

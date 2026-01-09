@@ -1,7 +1,7 @@
 //import wayland.display;
 //import wayland.xdg_shell_protocol;
 //import wayland.logger;
-import wayland;
+//import wayland;
 
 import window;
 
@@ -10,8 +10,6 @@ import std.stdio;
 int main()
 {
     try {
-        auto ref dpy = Display.connect!(XDGTopLevel);//, XDGDecoration);
-
         bool isrun = true;
         auto window = new Window(200, 400);
 

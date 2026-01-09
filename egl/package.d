@@ -5,24 +5,24 @@ public import egl_import;
 import std.exception;
 import std.typecons: Tuple, tuple;
 
-struct DisplayExt(string tag)
+struct DisplayTag(string tag)
 {
     static Tuple!(int, int) initialize(EGLenum platform, 
                                 void* native_display, 
-                                const(EGLint)* attrib_list = null)
+                                const(uint)[] attrib_list = null)
     {
-        assert(m_display == EGL_NO_DISPLAY, "m_display is already initialized");
+        assert(s_inst.m_display == EGL_NO_DISPLAY, "m_display is already initialized");
 
         auto eglGetPlatformDisplayEXT =
             cast(PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress("eglGetPlatformDisplayEXT");
         enforce(eglGetPlatformDisplayEXT, "eglGetPlatformDisplayEXT not supported");
 
-        m_Display = eglGetPlatformDisplayEXT(platform, native_display, attrib_list);
-        enforce(m_Display != EGL_NO_DISPLAY, "Could not create egl display");
+        s_inst.m_display = eglGetPlatformDisplayEXT(platform, native_display, attrib_list);
+        enforce(s_inst.m_display != EGL_NO_DISPLAY, "Could not create egl display");
 
         EGLint majorVersion;
         EGLint minorVersion;
-        enforce(eglInitialize(m_Display, &majorVersion, &minorVersion) == 0, 
+        enforce(eglInitialize(m_Displs_inst.m_displayay, &majorVersion, &minorVersion) == 0, 
                 "Could not initialize display");
             
         return tuple(majorVersion, minorVersion);
@@ -30,69 +30,116 @@ struct DisplayExt(string tag)
 
     static void terminate() nothrow @nogc
     {
-        if (EGL_NO_DISPLAY != m_Display) 
-            eglTerminate(m_Display);
+        if (EGL_NO_DISPLAY != s_inst.m_display){ 
+            eglTerminate(s_inst.m_display);
+            s_inst.m_display = EGL_NO_DISPLAY;
+        }
     }
 
     static EGLDisplay c_ptr()
     {
-        assert (m_display != EGL_NO_DISPLAY, "m_display is not initialized");
+        assert (s_inst.m_display != EGL_NO_DISPLAY, "m_display is not initialized");
         return m_display;
     }
 
-    static EGLConfig chooseConfig(const(uint)[] configAttribs)
+    static ref const(DisplayTag) instance()
     {
-        EGLint numConfigs;
-        EGLConfig config;
-
-        enforce(eglChooseConfig(c_ptr(), configAttribs.ptr, &config, 1, &numConfigs) == 0,
-                "Could not create choose config!");
-
-        return config;
+        assert (s_inst.m_display != EGL_NO_DISPLAY, "m_display is not initialized");
+        return s_inst;
     }
 
-    static EGLContext createContext(EGLConfig cfg, const(uint)[] contextAttribs)
+    ~this() 
+    { 
+        if (EGL_NO_DISPLAY != s_inst.m_display)
+            eglTerminate(s_inst.m_display);
+    }
+
+    EGLContext createContext(EGLConfig cfg, immutable uint[] contextAttribs) const
     {
-        return enforse(eglCreateContext(c_ptr, cfg, null, contextAttribs.ptr),
+        return enforse(eglCreateContext(m_display, cfg, null, contextAttribs.ptr),
                      "Could not create context!");
     }
 
-    static EGLSurface createWindowSurface(EGLConfig cfg, void* native_window)
+    EGLSurface createWindowSurface(EGLConfig cfg, void* native_window) const
     {
-
+        return enforse(eglCreateWindowSurface(m_display, cfg, m_native, null), 
+                    "Could not create surface!");
     }
 
 private:
-    static EGLDisplay m_display = EGL_NO_DISPLAY;
+    EGLDisplay m_display = EGL_NO_DISPLAY;
 
-    //static Display s_inst;
+    static Display s_inst;
 }
 
-struct ContextExt(string tag)
+alias Display = DisplayTag!null;
+
+// Display halpers ///////////////////////////////////////////////////////////////////////
+
+/** 
+ * ES3 context (since it is currently supported by most hardware and graphics libraries), 
+ * uses the default display, which is managed separately (initialization, destruction), 
+ * and is destroyed in the destructor (the lifetime should not be greater than the display)
+ */
+struct WindowContextES3
 {
-    this(EGLConfig cfg, const(uint)[] contextAttribs)
+    this(void* native_window, uint sampleCount, uint stencilSize = 8)
     {
-        m_context = eglCreateContext(DisplayExt!tag.get(), cfg, nullptr, contextAttribs.ptr);
-        enforse(m_context, "Could not create context!");
+        auto display = Display.instance;
+
+        immutable(EGLint)[] createConfigAttribs(uint sample, uint stencil) {
+            return [
+                EGL_RENDERABLE_TYPE,
+                EGL_OPENGL_ES3_BIT,
+                EGL_RED_SIZE, 8,
+                EGL_GREEN_SIZE, 8,
+                EGL_BLUE_SIZE, 8,
+                EGL_ALPHA_SIZE, 8,
+                EGL_STENCIL_SIZE, stencil,
+                EGL_SAMPLE_BUFFERS, sample > 1 ? 1 : 0,
+                EGL_SAMPLES, sample,
+                EGL_NONE
+            ];
+        }
+
+        auto configAttribs = createConfigAttribs(sampleCount, stencilSize);
+
+        EGLint numConfigs;
+        EGLConfig config;
+        enforce(eglChooseConfig(display, configAttribs.ptr, &config, 1, &numConfigs) == 0,
+                "Could not create choose config!");
+
+        immutable EGLint[] contextAttribs = [
+            EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE];
+
+        m_context = display.createContext(config, contextAttribs);
+        m_surface = display.createWindowSurface(config, native_window);
+
+        enforce(eglMakeCurrent(display, m_surface, m_surface, m_context) == 0, 
+                "Could not make context current!");
+
+        scope(failure) terminate();
     }
 
     @disable this(this);
 
     ~this()
+    { terminate(); }
+
+    void terminate() nothrow @nogc
     {
-        eglDestroyContext(DisplayExt!tag.get(), m_EGLContext);
+        auto display = Display.instance;
+        if (m_context) eglDestroyContext(display, m_context);
+        if (m_surface) eglDestroySurface(display, m_surface);
+    }
+
+    void swapBuffers() const
+    {
+        enforce(eglSwapBuffers(Display.instance, m_surface), 
+                "Could not complete eglSwapBuffers.");
     }
 
 private:
     EGLContext m_context;
-}
-
-alias Display = DisplayExt!null;
-alias Context = Context!null;
-
-struct Surface
-{
-
-private:
     EGLSurface m_surface;
 }

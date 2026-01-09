@@ -4,9 +4,8 @@ description "Главное приложение"
 
 targetPath "/tmp/dub"  # все бинарники сюда
 
-// Подключаем подпакет из папки ./core
 subPackage "./wayland"
-
-// Зависеть от этого подпакета
 dependency ":wayland" version="*"
 subConfiguration ":wayland" "egl"
+
+subPackage "./egl"
