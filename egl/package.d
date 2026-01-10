@@ -9,20 +9,21 @@ struct DisplayTag(string tag)
 {
     static Tuple!(int, int) initialize(EGLenum platform, 
                                 void* native_display, 
-                                const(uint)[] attrib_list = null)
+                                const(int)[] attrib_list = null)
     {
-        assert(s_inst.m_display == EGL_NO_DISPLAY, "m_display is already initialized");
+        assert(s_inst.m_display is null, "egl display is already initialized");
 
         auto eglGetPlatformDisplayEXT =
             cast(PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress("eglGetPlatformDisplayEXT");
         enforce(eglGetPlatformDisplayEXT, "eglGetPlatformDisplayEXT not supported");
 
-        s_inst.m_display = eglGetPlatformDisplayEXT(platform, native_display, attrib_list);
-        enforce(s_inst.m_display != EGL_NO_DISPLAY, "Could not create egl display");
+        s_inst.m_display = eglGetPlatformDisplayEXT(platform, native_display, 
+                                                    attrib_list.length == 0 ? null : attrib_list.ptr);
+        enforce(s_inst.m_display !is null, "Could not create egl display");
 
         EGLint majorVersion;
         EGLint minorVersion;
-        enforce(eglInitialize(m_Displs_inst.m_displayay, &majorVersion, &minorVersion) == 0, 
+        enforce(eglInitialize(s_inst.m_display, &majorVersion, &minorVersion) == 0, 
                 "Could not initialize display");
             
         return tuple(majorVersion, minorVersion);
@@ -30,31 +31,31 @@ struct DisplayTag(string tag)
 
     static void terminate() nothrow @nogc
     {
-        if (EGL_NO_DISPLAY != s_inst.m_display){ 
+        if (s_inst.m_display !is null){ 
             eglTerminate(s_inst.m_display);
-            s_inst.m_display = EGL_NO_DISPLAY;
+            s_inst.m_display = null;
         }
     }
 
     static EGLDisplay c_ptr()
     {
-        assert (s_inst.m_display != EGL_NO_DISPLAY, "m_display is not initialized");
+        assert (s_inst.m_display !is null, "egl display is not initialized");
         return m_display;
     }
 
     static ref const(DisplayTag) instance()
     {
-        assert (s_inst.m_display != EGL_NO_DISPLAY, "m_display is not initialized");
+        assert (s_inst.m_display !is null, "egl display is not initialized");
         return s_inst;
     }
 
-    ~this() 
+    static ~this() 
     { 
-        if (EGL_NO_DISPLAY != s_inst.m_display)
+        if (s_inst.m_display !is null)
             eglTerminate(s_inst.m_display);
     }
 
-    EGLContext createContext(EGLConfig cfg, immutable uint[] contextAttribs) const
+    EGLContext createContext(EGLConfig cfg, immutable int[] contextAttribs) const
     {
         return enforse(eglCreateContext(m_display, cfg, null, contextAttribs.ptr),
                      "Could not create context!");
@@ -67,7 +68,7 @@ struct DisplayTag(string tag)
     }
 
 private:
-    EGLDisplay m_display = EGL_NO_DISPLAY;
+    EGLDisplay m_display;
 
     static Display s_inst;
 }

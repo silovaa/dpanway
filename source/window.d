@@ -8,8 +8,6 @@ import wayland;
 //import egl;
 // import opengl.gl3; 
 
-auto ref dpy = egl_connect!(XDGTopLevel);//, XDGDecoration);
-
 class Window: XDGTopLevel
 {
     this (uint wigth, uint height)
@@ -44,8 +42,8 @@ writeln("Window Dtor");
         //     m_egl_window = wl_egl_window_create(m_surface, w, h);
         //     m_egl.createSurface(m_egl_window);
         // }
-        
-        m_context.resize(w, h);
+        if (w != 0 && h != 0)
+            m_context.resize(w, h);
 
         writeln("Window configure ", w, " ", h, " ", s);
     }

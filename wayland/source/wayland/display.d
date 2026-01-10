@@ -16,85 +16,25 @@ struct Display
 public:
     @disable this(this);
 
-    static ref Display connect(T...)(const(char)* name = null)
+    static void connect(T...)(const(char)* name = null)
     {
-        if (!instance.m_display){ 
-
-            instance.m_globals.reserve(T.length * 2);
-            static foreach (Type; T) {
-                Type.registry(instance.m_globals);
-            }
-
-            instance.m_globals.assumeSafeAppend();
-
-            instance.construct(name);
+        assert(!native, "wayland display is already initialized");
+       
+        Global[] globals; globals.reserve(T.length * 2);
+        static foreach (Type; T) {
+            Type.registry(instance.m_globals);
         }
 
-        return instance;
-    }
+        //globals.assumeSafeAppend();
 
-    void event_wait() 
-    {
-        while (wl_display_prepare_read(m_display) != 0) {
-            if (wl_display_dispatch_pending(m_display) < 0)
-                throw new Exception("failed to dispatch pending Wayland events");
-        }
-
-        int ret;
-
-        while ((ret = wl_display_flush(m_display)) < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-
-            if (errno == EAGAIN) {
-                pollfd[1] fds;
-                fds[0].fd = m_fds[EventT.wayland].fd;
-                fds[0].events = POLLOUT;
-
-                do {
-                    ret = poll(fds.ptr, 1, -1);
-                } while (ret < 0 && errno == EINTR);
-            }
-        }
-
-        if (ret < 0) {
-            wl_display_cancel_read(m_display);
-            throw new Exception("failed to display flush");
-        }
-
-        do {
-            ret = poll(m_fds.ptr, EventT.count - 1, -1); //To do add system interrupts
-        } while (ret < 0 && errno == EINTR);
-
-        if (ret < 0) {
-            if (m_fds[EventT.wayland].revents & POLLHUP)
-                throw new Exception("disconnected from wayland");
-
-            wl_display_cancel_read(m_display);
-            throw new Exception("failed to poll():");
-        }
-
-        if (m_fds[EventT.wayland].revents & POLLIN) {
-
-            if (wl_display_read_events(m_display) < 0)
-                throw new Exception("failed to read Wayland events");
-        }
-        else
-            wl_display_cancel_read(m_display);
-
-        if (wl_display_dispatch_pending(m_display) < 0)
-            throw new Exception("failed to dispatch pending Wayland events");
-
-        if (m_fds[EventT.key].revents & POLLIN) {
-            kb_repeat.emit(m_fds[EventT.key].fd);
-        }
+        inst = Display(name, globals);
     }
 
     static ~this()
     {
-        auto ref dpy = Display.instance;
-        if (dpy.m_display) {
+        if (native) {
+            auto ref dpy = Display.instance;
+
             foreach(SurfaceInterface surf; dpy.m_surface_pool)
                 surf.dispose();
             foreach(Global global; dpy.m_globals)
@@ -105,18 +45,26 @@ public:
 	        wl_proxy_destroy(cast(wl_proxy*)dpy.m_compositor);
 	        wl_registry_destroy(dpy.m_registry);
 
-	        wl_display_disconnect(dpy.m_display);
+	        wl_display_disconnect(native);
             //m_display = null;
         }
     }
 
-package:
-    static Display instance;
-
-    static wl_display* native()
+    static ref Display instance()
     {
-        return instance.m_display;
+        assert(native !is null, "wayland display is not initialized");
+
+        return inst;
     }
+
+package:
+    
+    static wl_display* native;
+
+    // static wl_display* native()
+    // {
+    //     return instance.m_display;
+    // }
 
     static wl_compositor* compositor()
     {
@@ -127,9 +75,8 @@ package:
     SurfaceInterface[wl_surface*] m_surface_pool;
 
 private:
-
+    static Display inst;
     Global[] m_globals;
-    wl_display* m_display;
 
     wl_registry*   m_registry;  
     wl_compositor* m_compositor;
@@ -140,7 +87,7 @@ private:
 
     pollfd[EventT.count] m_fds;
 
-    void construct(const(char)* name)
+    this(const(char)* name, Global[] gs)
     {
         m_display = enforce(wl_display_connect(name), 
                             "failed to create display");
@@ -148,7 +95,7 @@ private:
 	    m_registry = enforce(wl_display_get_registry(m_display),
                         "failed to create registry");
 
-        auto iter = GlobalIterator(m_globals);
+        auto iter = GlobalIterator(gs);
 
         __gshared wl_registry_listener lsr = {
             global: &handle_global,
@@ -161,9 +108,10 @@ private:
         if (wl_display_roundtrip(m_display) < 0) 
 		    throw new Exception("wl_display_roundtrip() failed");
         
-        wl_display_roundtrip(m_display);
         m_compositor = enforce(iter.compositor, 
 		                    "compositor doesn't support wl_compositor");
+
+        m_globals = iter.protocols;
 
         m_fds[EventT.wayland].fd = wl_display_get_fd(m_display);
 		m_fds[EventT.wayland].events = POLLIN;
@@ -171,6 +119,67 @@ private:
 
         m_fds[EventT.key].fd = -1;
         m_fds[EventT.key].events = POLLIN;
+    }
+}
+
+void event_wait() 
+{
+    auto m_display = Display.native;
+    assert(m_display !is null, "wayland display is not initialized");
+
+    while (wl_display_prepare_read(m_display) != 0) {
+        if (wl_display_dispatch_pending(m_display) < 0)
+            throw new Exception("failed to dispatch pending Wayland events");
+    }
+
+    int ret;
+
+    while ((ret = wl_display_flush(m_display)) < 0) {
+        if (errno == EINTR) {
+            continue;
+        }
+
+        if (errno == EAGAIN) {
+            pollfd[1] fds;
+            fds[0].fd = m_fds[EventT.wayland].fd;
+            fds[0].events = POLLOUT;
+
+            do {
+                ret = poll(fds.ptr, 1, -1);
+            } while (ret < 0 && errno == EINTR);
+        }
+    }
+
+    if (ret < 0) {
+        wl_display_cancel_read(m_display);
+        throw new Exception("failed to display flush");
+    }
+
+    do {
+        ret = poll(m_fds.ptr, EventT.count - 1, -1); //To do add system interrupts
+    } while (ret < 0 && errno == EINTR);
+
+    if (ret < 0) {
+        if (m_fds[EventT.wayland].revents & POLLHUP)
+            throw new Exception("disconnected from wayland");
+
+        wl_display_cancel_read(m_display);
+        throw new Exception("failed to poll():");
+    }
+
+    if (m_fds[EventT.wayland].revents & POLLIN) {
+
+        if (wl_display_read_events(m_display) < 0)
+            throw new Exception("failed to read Wayland events");
+    }
+    else
+        wl_display_cancel_read(m_display);
+
+    if (wl_display_dispatch_pending(m_display) < 0)
+        throw new Exception("failed to dispatch pending Wayland events");
+
+    if (m_fds[EventT.key].revents & POLLIN) {
+        kb_repeat.emit(m_fds[EventT.key].fd);
     }
 }
 
@@ -233,13 +242,13 @@ import core.stdc.string : strcmp;
 struct GlobalIterator
 {
     this(Global[] protocols)
-    {Logger.info("this %i", protocols.length);
+    {
         m_protocols = protocols;
     }
 
     wl_compositor* compositor;
 
-    bool find_compositor(const char* str) nothrow 
+    bool find_compositor(const char* str) nothrow @nogc
     {
         if (!compositor && (strcmp(str, wl_compositor_interface.name) == 0))
             return true;
@@ -267,6 +276,19 @@ struct GlobalIterator
         }
 
         return null;
+    }
+
+    immutable(Global)[] protocols() const
+    {
+        auto i = index + 1;
+        if (i < m_protocols.length){
+            foreach (prot; m_protocols[i..$])
+                Logger.info("the %s protocol is not supported by the composer.", 
+                            prot.name);
+            return m_protocols[0..i];
+        }
+
+        return m_protocols;
     }
 }
 

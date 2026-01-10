@@ -8,14 +8,13 @@ import wayland.surface;
 import wayland.display;
 import egl;
 
-ref wayland.Display egl_connect(Protocol...)()
+void egl_connect(Protocol...)()
 {
-    auto ref dpy = wayland.Display.connect!(Protocol)();
-    auto egl_vers = egl.Display.initialize(EGL_PLATFORM_WAYLAND_EXT, cast(void*)dpy.c_ptr);
+    wayland.Display.connect!(Protocol)();
+    auto egl_vers = egl.Display.initialize(EGL_PLATFORM_WAYLAND_EXT, 
+                                           cast(void*)wayland.Display.native);
 
     Logger.info("EGL version ", egl_vers[0], ".", egl_vers[1]);
-
-    return dpy;
 }
 
 struct EGLWindowContext
