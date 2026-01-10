@@ -20,12 +20,12 @@ public:
     {
         assert(!native, "wayland display is already initialized");
        
-        Global[] globals; globals.reserve(T.length * 2);
-        static foreach (Type; T) {
-            Type.registry(instance.m_globals);
-        }
+        Global[] globals; 
+        globals.reserve(T.length * 2);
 
-        //globals.assumeSafeAppend();
+        static foreach (Type; T) {
+            Type.registry(globals);
+        }
 
         inst = Display(name, globals);
     }
@@ -35,36 +35,27 @@ public:
         if (native) {
             auto ref dpy = Display.instance;
 
-            foreach(SurfaceInterface surf; dpy.m_surface_pool)
+            foreach(surf; dpy.m_surface_pool)
                 surf.dispose();
-            foreach(Global global; dpy.m_globals)
+            foreach(global; dpy.m_globals)
                 global.dispose();
-
-            //m_globals.length = 0; //??
 
 	        wl_proxy_destroy(cast(wl_proxy*)dpy.m_compositor);
 	        wl_registry_destroy(dpy.m_registry);
 
 	        wl_display_disconnect(native);
-            //m_display = null;
         }
     }
 
-    static ref Display instance()
+package:
+    static wl_display* native;
+
+    static ref Display instance() nothrow @nogc
     {
         assert(native !is null, "wayland display is not initialized");
 
         return inst;
     }
-
-package:
-    
-    static wl_display* native;
-
-    // static wl_display* native()
-    // {
-    //     return instance.m_display;
-    // }
 
     static wl_compositor* compositor()
     {
@@ -76,23 +67,19 @@ package:
 
 private:
     static Display inst;
-    Global[] m_globals;
+    immutable(Global)[] m_globals;
 
     wl_registry*   m_registry;  
     wl_compositor* m_compositor;
-
-     enum EventT {
-        system, wayland, key, count
-    }
 
     pollfd[EventT.count] m_fds;
 
     this(const(char)* name, Global[] gs)
     {
-        m_display = enforce(wl_display_connect(name), 
+        native = enforce(wl_display_connect(name), 
                             "failed to create display");
        
-	    m_registry = enforce(wl_display_get_registry(m_display),
+	    m_registry = enforce(wl_display_get_registry(native),
                         "failed to create registry");
 
         auto iter = GlobalIterator(gs);
@@ -105,7 +92,7 @@ private:
         enforce(wl_registry_add_listener(m_registry, &lsr, &iter) >= 0,
                 "add registry listener failed");
 
-        if (wl_display_roundtrip(m_display) < 0) 
+        if (wl_display_roundtrip(native) < 0) 
 		    throw new Exception("wl_display_roundtrip() failed");
         
         m_compositor = enforce(iter.compositor, 
@@ -113,7 +100,7 @@ private:
 
         m_globals = iter.protocols;
 
-        m_fds[EventT.wayland].fd = wl_display_get_fd(m_display);
+        m_fds[EventT.wayland].fd = wl_display_get_fd(native);
 		m_fds[EventT.wayland].events = POLLIN;
         m_fds[EventT.system].fd = -1; //To do add system interrupts
 
@@ -122,10 +109,15 @@ private:
     }
 }
 
+enum EventT {
+    system, wayland, key, count
+}
+
 void event_wait() 
 {
-    auto m_display = Display.native;
-    assert(m_display !is null, "wayland display is not initialized");
+    auto ref dpy = Display.instance;
+    auto m_display = dpy.native;
+    auto m_fds = dpy.m_fds;
 
     while (wl_display_prepare_read(m_display) != 0) {
         if (wl_display_dispatch_pending(m_display) < 0)
@@ -179,7 +171,7 @@ void event_wait()
         throw new Exception("failed to dispatch pending Wayland events");
 
     if (m_fds[EventT.key].revents & POLLIN) {
-        kb_repeat.emit(m_fds[EventT.key].fd);
+        dpy.kb_repeat.emit(m_fds[EventT.key].fd);
     }
 }
 
@@ -198,16 +190,16 @@ struct Timer
     this(void delegate() callback)
     {
         cb_emit = callback;
-        Display.instance.m_fds[Display.EventT.key].fd = 
+        Display.instance.m_fds[EventT.key].fd = 
             timerfd_create(CLOCK_MONOTONIC,
                            TFD_CLOEXEC | TFD_NONBLOCK);
     }
 
     ~this() nothrow @nogc
     {
-        int fd = Display.instance.m_fds[Display.EventT.key].fd;
+        int fd = Display.instance.m_fds[EventT.key].fd;
         if (fd >= 0){
-            Display.instance.m_fds[Display.EventT.key].fd = -1;
+            Display.instance.m_fds[EventT.key].fd = -1;
             close(fd);
         }
     }
@@ -280,15 +272,22 @@ struct GlobalIterator
 
     immutable(Global)[] protocols() const
     {
+        if (index == 0){
+            foreach (prot; m_protocols)
+                Logger.info("the %s protocol is not supported by the composer.", 
+                            prot.name);
+            return null;
+        }
+
         auto i = index + 1;
         if (i < m_protocols.length){
             foreach (prot; m_protocols[i..$])
                 Logger.info("the %s protocol is not supported by the composer.", 
                             prot.name);
-            return m_protocols[0..i];
+            return m_protocols[0..i].idup;
         }
 
-        return m_protocols;
+        return m_protocols.idup;
     }
 }
 

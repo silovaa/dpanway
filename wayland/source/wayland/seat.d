@@ -22,7 +22,7 @@ protected:
             Logger.error("failed to add seat listener");
     }
 
-    override void dispose() 
+    override void dispose() immutable
     {
         m_keyboard = Keyboard();
         m_pointer  = null;

@@ -65,7 +65,7 @@ nothrow @nogc struct Proxy (T, int Destroy_code)
         }
     }
 
-    T opCast(T : bool)() const 
+    T opCast(T : bool)() const
     {
         return m_ptr !is null;
     }
@@ -79,16 +79,17 @@ private:
 
 interface Global
 {
-    const(char)* name() const nothrow @nogc;
+    const(char)* name() immutable nothrow @nogc;
     // wl_registry_bind no marked as nothrow in wayland_import
     void bind(wl_registry *reg, uint name, uint vers);
-    void dispose();
+    void dispose() immutable;
 } 
 
 class GlobalProxy(Self, T, alias wliface, int Destroy_code): Global
 {
 private: 
-    Proxy!(T, Destroy_code) m_proxy;
+    //Proxy!(T, Destroy_code) m_proxy;
+    wl_proxy* m_proxy;
     
     // static struct Storage {
     //     static ubyte[__traits(classInstanceSize, Self)] data;
@@ -129,14 +130,14 @@ public:
     }
 
     final inout(T)* c_ptr() inout
-    {return m_proxy.c_ptr;}
+    {return m_proxy;}
 
     final bool empty() const nothrow
     {
         return m_proxy.c_ptr is null;
     }
 
-    final override const(char)* name() const nothrow @nogc
+    final override const(char)* name() immutable nothrow @nogc
     {
         return wliface.name; 
     }
@@ -146,9 +147,12 @@ public:
         m_proxy = cast(T*)wl_registry_bind(reg, name_id, &wliface, vers);
     }
 
-    override void dispose()
+    override void dispose() immutable
     {
-        m_proxy = null;
+        if (m_proxy)
+            cast(void) wl_proxy_marshal_flags(m_proxy, Destroy_code, null, 
+                                        wl_proxy_get_version(m_proxy),
+                                        WL_MARSHAL_FLAG_DESTROY);
     }
 }
 
