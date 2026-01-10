@@ -13,7 +13,7 @@ class Window: XDGTopLevel
     this (uint wigth, uint height)
     {
         super(wigth, height);
-        m_context = EGLWindowContext(this);
+        m_context = EGLWindowContext(this, wigth, height);
         // m_width = wigth;
         // m_height = height;
         writeln("Window Ctor");

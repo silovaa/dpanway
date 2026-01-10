@@ -1,41 +1,9 @@
 module wayland.internal.core;
 
 public import wayland_import;
-
 import wayland.logger;
 
 package(wayland):
-
-// immutable class WlInterface
-// {
-//     private wl_interface* m_native;
-
-//     this(immutable wl_interface* native)
-//     {
-//         m_native = native;
-//     }
-
-//     @property immutable(wl_interface)* native() nothrow
-//     {
-//         return m_native;
-//     }
-
-//     @property string name() nothrow
-//     {
-//         import std.string : fromStringz;
-//         return fromStringz(m_native.name);
-//     }
-
-//     bool isSame(const(char*) str) nothrow
-//     {
-//         return strcmp(m_native.name, str) == 0;
-//     }
-// }
-
-// bool wlIfaceEquals(immutable(WlInterface) a, immutable(WlInterface) b)
-// {
-//     return a is b || strcmp(a.m_native.name, b.m_native.name) == 0;
-// }
 
 nothrow @nogc struct Proxy (T, int Destroy_code) 
 {
@@ -65,7 +33,7 @@ nothrow @nogc struct Proxy (T, int Destroy_code)
         }
     }
 
-    T opCast(T : bool)() const
+    B opCast(B: bool)() const
     {
         return m_ptr !is null;
     }
@@ -79,41 +47,26 @@ private:
 
 interface Global
 {
-    const(char)* name() immutable nothrow @nogc;
-    // wl_registry_bind no marked as nothrow in wayland_import
+    const(char)* name() const nothrow @nogc;
     void bind(wl_registry *reg, uint name, uint vers);
-    void dispose() immutable;
+    void dispose();
 } 
 
 class GlobalProxy(Self, T, alias wliface, int Destroy_code): Global
 {
 private: 
-    //Proxy!(T, Destroy_code) m_proxy;
     wl_proxy* m_proxy;
-    
-    // static struct Storage {
-    //     static ubyte[__traits(classInstanceSize, Self)] data;
-    // }
-
-    // Статический указатель на экземпляр
     static Self s_instance;
 
-    // void set(wl_registry* reg, uint name_id, uint vers)
-    // {
-    //     m_proxy = cast(T*)wl_registry_bind(reg, name_id, &wliface, vers);
-    // }
-
-public:
+package(wayland):
     import std.stdio;
 
     static Global create()
     {
         //import std.conv : emplace;
-        //static assert(is(Self == class), "T должен быть классом");
-
+        //To do emplace Self
+        
         if (s_instance is null){
-            // s_instance = cast(Self*)Storage.data.ptr;
-            // emplace!Self(s_instance);
             s_instance = new Self;
 
             writeln("instance create ", Self.stringof);
@@ -130,29 +83,29 @@ public:
     }
 
     final inout(T)* c_ptr() inout
-    {return m_proxy;}
+    {return cast(T*)m_proxy;}
 
-    final bool empty() const nothrow
+    final bool empty() const nothrow @nogc @safe
     {
-        return m_proxy.c_ptr is null;
+        return m_proxy is null;
     }
 
-    final override const(char)* name() immutable nothrow @nogc
+protected:
+    final override const(char)* name() const nothrow @nogc 
     {
         return wliface.name; 
     }
 
     override void bind(wl_registry* reg, uint name_id, uint vers)
     {
-        m_proxy = cast(T*)wl_registry_bind(reg, name_id, &wliface, vers);
+        m_proxy = cast(wl_proxy*)wl_registry_bind(reg, name_id, &wliface, vers);
     }
 
-    override void dispose() immutable
+    override void dispose() const
     {
-        if (m_proxy)
-            cast(void) wl_proxy_marshal_flags(m_proxy, Destroy_code, null, 
-                                        wl_proxy_get_version(m_proxy),
-                                        WL_MARSHAL_FLAG_DESTROY);
+        cast(void) wl_proxy_marshal_flags(cast(wl_proxy*)m_proxy, Destroy_code, null, 
+                                    wl_proxy_get_version(cast(wl_proxy*)m_proxy),
+                                    WL_MARSHAL_FLAG_DESTROY);
     }
 }
 

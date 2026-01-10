@@ -8,3 +8,5 @@ subPackage "./wayland"
 dependency ":wayland" version="*"
 subConfiguration ":wayland" "egl"
 
+#subPackage "./egl"
+#dependency ":egl" version="*"

@@ -67,7 +67,7 @@ package:
 
 private:
     static Display inst;
-    immutable(Global)[] m_globals;
+    Global[] m_globals;
 
     wl_registry*   m_registry;  
     wl_compositor* m_compositor;
@@ -206,7 +206,7 @@ struct Timer
 
     void set_time(ref itimerspec tspec) const nothrow @nogc
     {
-        auto fd = Display.instance.m_fds[Display.EventT.key].fd;
+        auto fd = Display.instance.m_fds[EventT.key].fd;
         timerfd_settime(fd, 0, &tspec, null);
     }
 
@@ -249,7 +249,7 @@ struct GlobalIterator
     }
 
     Global[] m_protocols;
-    int index;
+    uint index;
 
     Global find(const(char)* str) nothrow @nogc
     { 
@@ -270,7 +270,7 @@ struct GlobalIterator
         return null;
     }
 
-    immutable(Global)[] protocols() const
+    Global[] protocols()  
     {
         if (index == 0){
             foreach (prot; m_protocols)
@@ -284,10 +284,10 @@ struct GlobalIterator
             foreach (prot; m_protocols[i..$])
                 Logger.info("the %s protocol is not supported by the composer.", 
                             prot.name);
-            return m_protocols[0..i].idup;
+            return m_protocols[0..i];
         }
 
-        return m_protocols.idup;
+        return m_protocols;
     }
 }
 

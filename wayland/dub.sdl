@@ -16,7 +16,7 @@ configuration "egl" {
 
     dependency "egl" path="../egl"
     #dflags "-P-I../egl/source"
-    libs "wayland-egl"
+    libs "wayland-egl" #"egl"
 }
 
 # 2. Указываем файлы для компиляции (DUB сам скомпилирует их в .obj/.o)

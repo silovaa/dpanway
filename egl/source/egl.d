@@ -11,19 +11,18 @@ struct DisplayTag(string tag)
                                 void* native_display, 
                                 const(int)[] attrib_list = null)
     {
-        assert(s_inst.m_display is null, "egl display is already initialized");
+        assert(m_display is null, "egl display is already initialized");
 
         auto eglGetPlatformDisplayEXT =
             cast(PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress("eglGetPlatformDisplayEXT");
         enforce(eglGetPlatformDisplayEXT, "eglGetPlatformDisplayEXT not supported");
 
-        s_inst.m_display = eglGetPlatformDisplayEXT(platform, native_display, 
-                                                    attrib_list.length == 0 ? null : attrib_list.ptr);
-        enforce(s_inst.m_display !is null, "Could not create egl display");
+        m_display = eglGetPlatformDisplayEXT(platform, native_display, attrib_list.ptr);
+        enforce(m_display !is null, "Could not create egl display");
 
         EGLint majorVersion;
         EGLint minorVersion;
-        enforce(eglInitialize(s_inst.m_display, &majorVersion, &minorVersion) == 0, 
+        enforce(eglInitialize(m_display, &majorVersion, &minorVersion) == 0, 
                 "Could not initialize display");
             
         return tuple(majorVersion, minorVersion);
@@ -31,46 +30,46 @@ struct DisplayTag(string tag)
 
     static void terminate() nothrow @nogc
     {
-        if (s_inst.m_display !is null){ 
-            eglTerminate(s_inst.m_display);
-            s_inst.m_display = null;
+        if (m_display !is null){ 
+            eglTerminate(m_display);
+            m_display = null;
         }
     }
 
     static EGLDisplay c_ptr()
     {
-        assert (s_inst.m_display !is null, "egl display is not initialized");
+        assert (m_display !is null, "egl display is not initialized");
         return m_display;
     }
 
-    static ref const(DisplayTag) instance()
-    {
-        assert (s_inst.m_display !is null, "egl display is not initialized");
-        return s_inst;
-    }
+    // static ref const(DisplayTag) instance()
+    // {
+    //     assert (s_inst.m_display !is null, "egl display is not initialized");
+    //     return s_inst;
+    // }
 
     static ~this() 
     { 
-        if (s_inst.m_display !is null)
-            eglTerminate(s_inst.m_display);
+        if (m_display !is null)
+            eglTerminate(m_display);
     }
 
-    EGLContext createContext(EGLConfig cfg, immutable int[] contextAttribs) const
-    {
-        return enforse(eglCreateContext(m_display, cfg, null, contextAttribs.ptr),
-                     "Could not create context!");
-    }
+    // EGLContext createContext(EGLConfig cfg, immutable int[] contextAttribs) const
+    // {
+    //     return enforce(eglCreateContext(m_display, cfg, null, contextAttribs.ptr),
+    //                  "Could not create context!");
+    // }
 
-    EGLSurface createWindowSurface(EGLConfig cfg, void* native_window) const
-    {
-        return enforse(eglCreateWindowSurface(m_display, cfg, m_native, null), 
-                    "Could not create surface!");
-    }
+    // EGLSurface createWindowSurface(EGLConfig cfg, void* native_window) const
+    // {
+    //     return enforce(eglCreateWindowSurface(m_display, cfg, m_native, null), 
+    //                 "Could not create surface!");
+    // }
 
 private:
-    EGLDisplay m_display;
+    static EGLDisplay m_display;
 
-    static Display s_inst;
+    //static Display s_inst;
 }
 
 alias Display = DisplayTag!null;
@@ -86,7 +85,7 @@ struct WindowContextES3
 {
     this(void* native_window, uint sampleCount = 4, uint stencilSize = 8)
     {
-        auto display = Display.instance;
+        auto display = Display.c_ptr;
 
         immutable(EGLint)[] createConfigAttribs(uint sample, uint stencil) {
             return [
@@ -113,8 +112,10 @@ struct WindowContextES3
         immutable EGLint[] contextAttribs = [
             EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE];
 
-        m_context = display.createContext(config, contextAttribs);
-        m_surface = display.createWindowSurface(config, native_window);
+        m_context = enforce(eglCreateContext(display, config, null, contextAttribs.ptr),
+                            "Could not create context!");
+        m_surface = enforce(eglCreateWindowSurface(display, config, native_window, null), 
+                            "Could not create surface!");
 
         enforce(eglMakeCurrent(display, m_surface, m_surface, m_context) == 0, 
                 "Could not make context current!");
@@ -127,16 +128,16 @@ struct WindowContextES3
     ~this()
     { terminate(); }
 
-    void terminate() nothrow @nogc
+    void terminate() @nogc
     {
-        auto display = Display.instance;
+        auto display = Display.c_ptr;
         if (m_context) eglDestroyContext(display, m_context);
         if (m_surface) eglDestroySurface(display, m_surface);
     }
 
     void swapBuffers() const
     {
-        enforce(eglSwapBuffers(Display.instance, m_surface), 
+        enforce(eglSwapBuffers(Display.c_ptr, m_surface), 
                 "Could not complete eglSwapBuffers.");
     }
 
