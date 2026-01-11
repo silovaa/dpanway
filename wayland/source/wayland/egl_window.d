@@ -14,7 +14,7 @@ void egl_connect(Protocol...)()
     auto egl_vers = egl.Display.initialize(EGL_PLATFORM_WAYLAND_EXT, 
                                            cast(void*)wayland.Display.native);
 
-    Logger.info("EGL version ", egl_vers[0], ".", egl_vers[1]);
+    Logger.info("EGL version %i.%i", egl_vers[0], egl_vers[1]);
 }
 
 struct EGLWindowContext
@@ -22,7 +22,7 @@ struct EGLWindowContext
     this(Surface surface, uint width, uint height)
     {
         m_c_ptr = wl_egl_window_create(surface.c_ptr, width, height);
-        m_context = WindowContextES3(cast(void*)surface.c_ptr);
+        m_context = WindowContextES3(cast(void*)m_c_ptr);
     }
 
     ~this() 
@@ -33,6 +33,14 @@ struct EGLWindowContext
     void resize(uint width, uint height)
     {
         wl_egl_window_resize(m_c_ptr, width, height, 0, 0);
+        glClearColor(0.1f, 0.2f, 0.3f, 0.5f);
+        glClear(GL_STENCIL_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+        glViewport(0, 0, width, height);
+    }
+
+    void swapBuffers()
+    {
+        m_context.swapBuffers();
     }
 
     inout(wl_egl_window)* c_ptr() inout

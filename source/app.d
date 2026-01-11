@@ -10,7 +10,7 @@ import std.stdio;
 int main()
 {
     try {
-        egl_connect!(XDGTopLevel);//, XDGDecoration);
+        egl_connect!(DecoratedXDGTopLevel);//, XDGDecoration);
 
         bool isrun = true;
         auto window = new Window(200, 400);

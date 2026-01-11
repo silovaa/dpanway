@@ -15,8 +15,7 @@ configuration "egl" {
     preBuildCommands "./wayland_gen.sh egl"
 
     dependency "egl" path="../egl"
-    #dflags "-P-I../egl/source"
-    libs "wayland-egl" #"egl"
+    libs "wayland-egl" 
 }
 
 # 2. Указываем файлы для компиляции (DUB сам скомпилирует их в .obj/.o)

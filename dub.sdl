@@ -4,9 +4,9 @@ description "Главное приложение"
 
 targetPath "/tmp/dub"  # все бинарники сюда
 
-subPackage "./wayland"
-dependency ":wayland" version="*"
-subConfiguration ":wayland" "egl"
+//subPackage "./wayland"
+dependency "wayland" path="./wayland"
+subConfiguration "wayland" "egl"
 
 #subPackage "./egl"
 #dependency ":egl" version="*"

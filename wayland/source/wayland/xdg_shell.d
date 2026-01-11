@@ -1,4 +1,4 @@
-module wayland.xdg_shell_protocol;
+module wayland.xdg_shell;
 
 import wayland.internal.core;
 import wayland.surface;
@@ -91,6 +91,47 @@ protected:
     abstract void configure(uint w, uint h, uint s);
 }
 
+enum DecorMode {
+    ServerSide = ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
+}
+
+class DecoratedXDGTopLevel: XDGTopLevel
+{
+    this(uint width, uint height)
+    {
+        super(width, height);
+        auto manager = XDGDecorationManager.get;
+        if (!manager.empty())
+            m_decor = zxdg_decoration_manager_v1_get_toplevel_decoration(manager.c_ptr,
+                                                                        m_top.c_ptr);
+        decorMode(DecorMode.ServerSide);
+    }
+
+    this(SensitiveLayer input, uint width, uint heigh)
+    {
+        super(input, width, heigh);
+        auto manager = XDGDecorationManager.get;
+        if (!manager.empty())
+            m_decor = zxdg_decoration_manager_v1_get_toplevel_decoration(manager.c_ptr,
+                                                                        m_top.c_ptr);
+        decorMode(DecorMode.ServerSide);
+    }
+
+    final void decorMode(DecorMode mode)
+    {
+        zxdg_toplevel_decoration_v1_set_mode(m_decor.c_ptr, mode);
+    }
+
+package(wayland):
+    mixin RegistryProtocols!XDGDecorationManager;
+
+private:
+    Proxy!(zxdg_toplevel_decoration_v1, 
+           ZXDG_TOPLEVEL_DECORATION_V1_DESTROY) m_decor;
+}
+
+
+
 private:
 
 final class XDGWmBase: GlobalProxy!(XDGWmBase, xdg_wm_base, xdg_wm_base_interface, XDG_WM_BASE_DESTROY)
@@ -106,6 +147,12 @@ final class XDGWmBase: GlobalProxy!(XDGWmBase, xdg_wm_base, xdg_wm_base_interfac
         xdg_wm_base_add_listener (c_ptr(), &listener, null);
     }
 }
+
+final class XDGDecorationManager: GlobalProxy!(XDGDecorationManager, 
+                                            zxdg_decoration_manager_v1, 
+                                            zxdg_decoration_manager_v1_interface, 
+                                            ZXDG_DECORATION_MANAGER_V1_DESTROY)
+{}
 
 extern (C) nothrow {
 

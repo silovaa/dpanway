@@ -4,4 +4,4 @@ description "simply egl wrapper"
 
 sourceFiles "source/egl_import.c"
 #dflags "-P-Isource"
-libs "egl" 
+libs "egl" "gl"

@@ -14,6 +14,7 @@ MODE=${1:-"core"}
 PROTOCOLS=(
     "xdg-shell"
     "fractional-scale-v1"
+    "xdg-decoration-unstable-v1"
 )
 
 mkdir -p "$OUT_DIR"

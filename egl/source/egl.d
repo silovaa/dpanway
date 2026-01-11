@@ -22,13 +22,13 @@ struct DisplayTag(string tag)
 
         EGLint majorVersion;
         EGLint minorVersion;
-        enforce(eglInitialize(m_display, &majorVersion, &minorVersion) == 0, 
+        enforce(eglInitialize(m_display, &majorVersion, &minorVersion) != 0, 
                 "Could not initialize display");
             
         return tuple(majorVersion, minorVersion);
     }
 
-    static void terminate() nothrow @nogc
+    static void terminate() 
     {
         if (m_display !is null){ 
             eglTerminate(m_display);
@@ -106,7 +106,7 @@ struct WindowContextES3
 
         EGLint numConfigs;
         EGLConfig config;
-        enforce(eglChooseConfig(display, configAttribs.ptr, &config, 1, &numConfigs) == 0,
+        enforce(eglChooseConfig(display, configAttribs.ptr, &config, 1, &numConfigs) != 0,
                 "Could not create choose config!");
 
         immutable EGLint[] contextAttribs = [
@@ -117,7 +117,7 @@ struct WindowContextES3
         m_surface = enforce(eglCreateWindowSurface(display, config, native_window, null), 
                             "Could not create surface!");
 
-        enforce(eglMakeCurrent(display, m_surface, m_surface, m_context) == 0, 
+        enforce(eglMakeCurrent(display, m_surface, m_surface, m_context) != 0, 
                 "Could not make context current!");
 
         scope(failure) terminate();
@@ -128,14 +128,14 @@ struct WindowContextES3
     ~this()
     { terminate(); }
 
-    void terminate() @nogc
+    void terminate() 
     {
         auto display = Display.c_ptr;
         if (m_context) eglDestroyContext(display, m_context);
         if (m_surface) eglDestroySurface(display, m_surface);
     }
 
-    void swapBuffers() const
+    void swapBuffers() 
     {
         enforce(eglSwapBuffers(Display.c_ptr, m_surface), 
                 "Could not complete eglSwapBuffers.");

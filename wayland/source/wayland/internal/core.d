@@ -77,8 +77,8 @@ package(wayland):
 
     static Self get()
     {
-        if(s_instance is null)
-            writeln("instance is null ", Self.stringof);
+        assert(s_instance !is null, "global not registered in Display");
+        
         return s_instance;
     }
 
@@ -101,10 +101,10 @@ protected:
         m_proxy = cast(wl_proxy*)wl_registry_bind(reg, name_id, &wliface, vers);
     }
 
-    override void dispose() const
+    override void dispose()
     {
-        cast(void) wl_proxy_marshal_flags(cast(wl_proxy*)m_proxy, Destroy_code, null, 
-                                    wl_proxy_get_version(cast(wl_proxy*)m_proxy),
+        cast(void) wl_proxy_marshal_flags(m_proxy, Destroy_code, null, 
+                                    wl_proxy_get_version(m_proxy),
                                     WL_MARSHAL_FLAG_DESTROY);
     }
 }
