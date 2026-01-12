@@ -18,15 +18,15 @@ enum XDGState
 class XDGTopLevel: Surface
 {
 public:
-    this(uint width, uint height)
+    this()
     {
-        construct(width, height);
+        construct();
     }
 
-    this(SensitiveLayer input, uint width, uint heigh)
+    this(SensitiveLayer input)
     {
         super(input);
-        construct(width, heigh);
+        construct();
     }
 
     final void setTitle(const(char)* title)
@@ -45,7 +45,7 @@ private:
     Proxy!(xdg_surface,  XDG_SURFACE_DESTROY)  m_xdg_surfase;
     Proxy!(xdg_toplevel, XDG_TOPLEVEL_DESTROY) m_top;
 
-    void construct(uint width, uint height)
+    void construct()
     {
         auto xdg_base = XDGWmBase.get();
 
@@ -72,15 +72,9 @@ private:
             
             commit();
         }
-
-        m_width  = width;
-        m_height = height;
     }
 
 protected:
-    uint32_t m_width ;
-    uint32_t m_height;
-    uint32_t m_state ;
 
     abstract void closed();
 
@@ -89,6 +83,34 @@ protected:
      * and/or window dimensions (w, h) change 
      */
     abstract void configure(uint w, uint h, uint s);
+
+    bool askConfigure() 
+    {
+        return true;
+    }
+}
+
+template TopLevel(Protocols...) {
+    static if (Protocols.length == 0) {
+        // Без декораторов
+        class WithProtocols : XDGTopLevel {
+            this() {
+                super();
+            }
+        }
+    } else {
+        // Применяем декораторы
+        alias FirstProtocol = Protocols[0];
+        alias RestProtocols = Protocols[1..$];
+        alias InnerType = WithProtocols!(RestProtocols);
+        
+        class WithProtocols : FirstProtocol!(InnerType) {
+            this() {
+                auto inner = new InnerType();
+                super(inner);
+            }
+        }
+    }
 }
 
 enum DecorMode {
@@ -97,9 +119,9 @@ enum DecorMode {
 
 class DecoratedXDGTopLevel: XDGTopLevel
 {
-    this(uint width, uint height)
+    this()
     {
-        super(width, height);
+        super();
         auto manager = XDGDecorationManager.get;
         if (!manager.empty())
             m_decor = zxdg_decoration_manager_v1_get_toplevel_decoration(manager.c_ptr,
@@ -107,7 +129,7 @@ class DecoratedXDGTopLevel: XDGTopLevel
         decorMode(DecorMode.ServerSide);
     }
 
-    this(SensitiveLayer input, uint width, uint heigh)
+    this(SensitiveLayer input)
     {
         super(input, width, heigh);
         auto manager = XDGDecorationManager.get;
@@ -168,21 +190,21 @@ void cb_ping(void*, xdg_wm_base *wm_base, uint serial)
 void cb_configure(void* data, xdg_toplevel *tt,
                     int width, int height, wl_array* states)
 {
+    try{
+        auto inst = cast(XDGTopLevel)data;
+        uint state_res;
 
-    auto inst = cast(XDGTopLevel)data;
-    inst.m_state = 0;
+        uint32_t[] statesSlice = 
+            (cast(uint32_t*) states.data)[0 .. states.size / uint32_t.sizeof];
 
-    uint32_t[] statesSlice = 
-        (cast(uint32_t*) states.data)[0 .. states.size / uint32_t.sizeof];
+        foreach (state; statesSlice) {
+            state_res |= (1 << state);
+        }
 
-    foreach (state; statesSlice) {
-        inst.m_state |= (1 << state);
+        inst.configure(width, height, state_res);
     }
-
-    if (width && height){
-        inst.m_width  = width;
-        inst.m_height = height;
-    }
+        catch(Exception e)
+            Logger.error("Callback XDGTopLevel configure failed: %s", e.msg);
 }
 
 void cb_close(void *data, xdg_toplevel*)
@@ -207,8 +229,8 @@ void cb_xdgconfigure(void* data, xdg_surface *xdg_surf, uint32_t serial)
     auto inst = cast(XDGTopLevel)data;
 
     try{
-        xdg_surface_ack_configure(xdg_surf, serial);
-        inst.configure(inst.m_width, inst.m_height, inst.m_state);
+        if (inst.askConfigure)
+            xdg_surface_ack_configure(xdg_surf, serial);
     }
     catch(Exception e)
         Logger.error("Callback XDGTopLevel configure failed: %s", e.msg);
