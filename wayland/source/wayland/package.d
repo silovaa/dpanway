@@ -23,9 +23,8 @@ template WithProtocols(Base, Protocols...) {
     // Класс ТОЛЬКО для сборки
     abstract class ProtocolsBase : Base, AllInterfaces {
         // Вставляем тела всех декораторов
-        mixin(combineBodies!Decorators);
+        mixin(combineBodies!Protocols);
          
-        
         // Базовый конструктор
         this() {
             _state = State();
