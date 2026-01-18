@@ -6,20 +6,52 @@ import wayland.sensitive_layer;
 import wayland.logger;
 
 import std.exception;
+import std.stdio;
+
+interface Scale
+{
+    void on_scale_changed(float /*factor*/);
+
+    final wl_proxy* initialize(Surface surf) const
+    {
+        auto manager = ScaleManager.create();
+        
+        if (!manager.empty()) {
+            auto m_fscale =
+                wp_fractional_scale_manager_v1_get_fractional_scale(manager.c_ptr,
+                                                                    surf.c_ptr);
+
+            if (m_fscale) {
+                wp_fractional_scale_v1_add_listener(m_fscale,
+                                                    &scale_lsr, cast(void*)this);
+                return cast(wl_proxy*)m_fscale;
+            }
+        }
+
+        return null;
+    }
+
+    final void dispose(wl_proxy* ptr)
+    {
+        Proxy!(wl_proxy, WP_FRACTIONAL_SCALE_V1_DESTROY) self = ptr;
+    }
+}
+
+class ScaleManager: GlobalProxy!(ScaleManager,
+                        wp_fractional_scale_manager_v1,
+                        wp_fractional_scale_manager_v1_interface,
+                        WP_FRACTIONAL_SCALE_MANAGER_V1_DESTROY)
+{
+    mixin RegistryProtocols!ScaleManager;
+} 
 
 package(wayland):
 
 /** 
  * Базовый класс для всех отображаемых поверхностей
  */
-class Surface: SurfaceInterface
+class Surface
 {
-    ~this()
-    {
-        if (m_native) {
-            Display.instance.m_surface_pool.remove(m_native.c_ptr);
-        }
-    }
 
     final inout(wl_surface*) c_ptr() inout
     {
@@ -39,18 +71,6 @@ protected:
 
         wl_surface_add_listener(m_native.c_ptr, &surface_lsr, cast(void*)this);
 
-        auto manager = ScaleManager.get();
-        if (!manager.empty()) {
-            m_fscale =
-                wp_fractional_scale_manager_v1_get_fractional_scale(manager.c_ptr,
-                                                                    m_native.c_ptr);
-
-            if (m_fscale) 
-                wp_fractional_scale_v1_add_listener(m_fscale.c_ptr,
-                                                    &scale_lsr, cast(void*)this);
-        }
-
-        Display.instance.m_surface_pool[m_native.c_ptr] = this;
     }
 
     /** 
@@ -72,14 +92,11 @@ protected:
      */
     override void dispose()
     {
-        m_fscale = null;
+        writeln("Destroy Surf");
         m_native = null;
     }
 
-    abstract void on_scale_changed(float /*factor*/);
-
 package(wayland):
-    mixin RegistryProtocols!ScaleManager;
 
     final SensitiveLayer inputHandler()
     {
@@ -90,21 +107,12 @@ package(wayland):
     }
 
 private:
-    Proxy!(wl_surface, WL_SUBSURFACE_DESTROY) m_native;
-    Proxy!(wp_fractional_scale_v1,
-              WP_FRACTIONAL_SCALE_V1_DESTROY) m_fscale;
+    Proxy!(wl_surface, WL_SURFACE_DESTROY) m_native;
               
     SensitiveLayer input_handler;
 }
 
 private:
-
-class ScaleManager: GlobalProxy!(ScaleManager,
-                        wp_fractional_scale_manager_v1,
-                        wp_fractional_scale_manager_v1_interface,
-                        WP_FRACTIONAL_SCALE_MANAGER_V1_DESTROY)
-{} 
-
 
 __gshared wl_surface_listener surface_lsr =
 {
@@ -140,7 +148,7 @@ void cb_preferred_buffer_transform(void *data,
 void cb_preferred_scale(void* data, wp_fractional_scale_v1 *, 
                         uint scale)
 {
-    auto surface = cast(Surface) data;
+    auto surface = cast(Scale)(cast(Surface)data);
     float val = scale / 120.0f;
     
     try{

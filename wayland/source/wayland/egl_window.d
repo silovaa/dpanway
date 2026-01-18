@@ -10,24 +10,30 @@ import egl;
 
 void egl_connect(Protocol...)()
 {
-    wayland.Display.connect!(Protocol)();
+    wayland.Display.connect!Protocol();
     auto egl_vers = egl.Display.initialize(EGL_PLATFORM_WAYLAND_EXT, 
                                            cast(void*)wayland.Display.native);
 
     Logger.info("EGL version %i.%i", egl_vers[0], egl_vers[1]);
 }
 
+void egl_disconnect()
+{
+    egl.Display.terminate();
+    wayland.Display.instance.dispose();
+}
+
 struct EGLWindowContext
 {
+    @disable this(this);
+
+    alias m_context this; 
+
     this(Surface surface, uint width, uint height)
     {
         m_c_ptr = wl_egl_window_create(surface.c_ptr, width, height);
         m_context = WindowContextES3(cast(void*)m_c_ptr);
-    }
-
-    ~this() 
-    {
-        wl_egl_window_destroy(m_c_ptr);
+        Logger.info("EGL ");
     }
 
     void resize(uint width, uint height)
@@ -38,15 +44,19 @@ struct EGLWindowContext
         glViewport(0, 0, width, height);
     }
 
-    void swapBuffers()
-    {
-        m_context.swapBuffers();
-    }
-
     inout(wl_egl_window)* c_ptr() inout
     { return m_c_ptr;}
 
+    void terminate()
+    {
+        m_context.terminate();
+        if (m_c_ptr)
+            wl_egl_window_destroy(m_c_ptr);
+    }
+
+    WindowContextES3 m_context;
+
 private:
     wl_egl_window* m_c_ptr;
-    WindowContextES3 m_context;
+    
 }

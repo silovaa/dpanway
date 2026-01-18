@@ -2,6 +2,7 @@ module wayland.internal.core;
 
 public import wayland_import;
 import wayland.logger;
+import std.stdio;
 
 package(wayland):
 
@@ -55,13 +56,12 @@ interface Global
 class GlobalProxy(Self, T, alias wliface, int Destroy_code): Global
 {
 private: 
-    wl_proxy* m_proxy;
+    wl_proxy* m_proxy = null;
     static Self s_instance;
 
 package(wayland):
-    import std.stdio;
 
-    static Global create()
+    static Self create()
     {
         //import std.conv : emplace;
         //To do emplace Self
@@ -82,42 +82,46 @@ package(wayland):
         return s_instance;
     }
 
-    final inout(T)* c_ptr() inout
-    {return cast(T*)m_proxy;}
-
     final bool empty() const nothrow @nogc @safe
     {
         return m_proxy is null;
     }
 
-protected:
+    final inout(T)* c_ptr() inout
+    {return cast(T*)m_proxy;}
+
+public:
     final override const(char)* name() const nothrow @nogc 
     {
         return wliface.name; 
     }
 
     override void bind(wl_registry* reg, uint name_id, uint vers)
-    {
+    {   
         m_proxy = cast(wl_proxy*)wl_registry_bind(reg, name_id, &wliface, vers);
     }
 
     override void dispose()
     {
-        cast(void) wl_proxy_marshal_flags(m_proxy, Destroy_code, null, 
+        if (m_proxy){writeln("Destroq global", name);
+            cast(void) wl_proxy_marshal_flags(m_proxy, Destroy_code, null, 
                                     wl_proxy_get_version(m_proxy),
                                     WL_MARSHAL_FLAG_DESTROY);
+        
+            m_proxy = null;
+        }
     }
 }
 
 mixin template RegistryProtocols(T...)
 {
-    static void registry(out Global[] reg)
+    static void registry(ref Global[] reg)
     {
-        alias Parent = typeof(super);
-        static if (__traits(hasMember, Parent, "registry"))
-        {
-            Parent.registry(reg);
-        }
+        // alias Parent = typeof(super);
+        // static if (__traits(hasMember, Parent, "registry"))
+        // {
+        //     Parent.registry(reg);
+        // }
 
         // 2. Итерация по типам T и вызов их статических методов create
         static foreach (Type; T)

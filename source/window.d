@@ -1,6 +1,7 @@
 module window;
 
 import std.stdio;
+//import std.typecons : Nullable;
 
 //import wayland.core;
 //import wayland.xdg_shell_protocol;
@@ -8,11 +9,10 @@ import wayland;
 //import egl;
 // import opengl.gl3; 
 
-class Window: DecoratedXDGTopLevel
+class Window: WithProtocols!(DecoratedXDGTopLevel, Scale)
 {
     this (uint wigth, uint height)
     {
-        super(wigth, height);
         ww=wigth; hh = height;
         m_context = EGLWindowContext(this, wigth, height);
         // m_width = wigth;
@@ -34,7 +34,7 @@ writeln("Window Dtor");
     // }
 
     override void configure(uint w, uint h, uint s)
-    {
+    {writeln("Window configure ", w, " ", h, " ", s);
         //  m_width = w; m_height = h;
 
         // if (m_egl_window) 
@@ -43,30 +43,32 @@ writeln("Window Dtor");
         //     m_egl_window = wl_egl_window_create(m_surface, w, h);
         //     m_egl.createSurface(m_egl_window);
         // }
-        if (w != ww || h != hh){
+        
+        if ((w != ww || h != hh) && !start){
             m_context.resize(w, h);
             ww = w; hh =h;
+            m_context.swapBuffers();
         }
 
-        m_context.swapBuffers();
-        writeln("Window configure ", w, " ", h, " ", s);
+        //writeln("Window configure ", w, " ", h, " ", s);
     }
 
-    // override bool askConfigure()
-    // {
-    //     static int i = 0;
-        
-    //     if (i == 0) return true; 
-    //     if (i == 10){i = 1; return true;}
-    //     ++i;
-    //     return false;
-    // }
+    override void askConfigure()
+    {
+        if (start){
+            m_context.makeCurrent();
+            m_context.swapBuffers();
+            start = false;
+        }
+    }
 
     void delegate() onClosed;
 
     override void closed()
     {
         if (onClosed) onClosed();
+        m_context.terminate();
+        dispose();
         writeln("Window closed");
     }
 
@@ -102,6 +104,7 @@ writeln("scale ", factor);
 private:
     EGLWindowContext m_context;
     uint ww, hh;
+    bool start = true;
 //     EglWaylandClient m_egl;
 //     Wl_egl_window* m_egl_window;
 }

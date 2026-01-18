@@ -10,7 +10,7 @@ import std.stdio;
 int main()
 {
     try {
-        egl_connect!(DecoratedXDGTopLevel);//, XDGDecoration);
+        egl_connect!(XDGWmBase, XDGDecorationManager, ScaleManager);//, XDGDecoration);
 
         bool isrun = true;
         auto window = new Window(200, 400);
@@ -21,6 +21,8 @@ int main()
         while(isrun) {
             event_wait();
         }
+
+        egl_disconnect();
     }
     catch(Exception e) {
         writeln(e.msg);

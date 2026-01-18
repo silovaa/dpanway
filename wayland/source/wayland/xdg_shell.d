@@ -6,6 +6,7 @@ import wayland.sensitive_layer;
 import wayland.logger;
 
 import std.exception;
+import std.stdio;
 
 enum XDGState
 {
@@ -39,7 +40,7 @@ public:
     // {return m_top.c_ptr();}
 
 package(wayland):
-    mixin RegistryProtocols!XDGWmBase;
+    
 
 private:
     Proxy!(xdg_surface,  XDG_SURFACE_DESTROY)  m_xdg_surfase;
@@ -50,6 +51,7 @@ private:
         auto xdg_base = XDGWmBase.get();
 
         if (!xdg_base.empty()){
+            
             m_xdg_surfase = enforce(xdg_wm_base_get_xdg_surface(xdg_base.c_ptr, c_ptr),
                                     "Can't create xdg surface");
                 
@@ -75,6 +77,13 @@ private:
     }
 
 protected:
+    override void dispose()
+    {
+        writeln("Destroy TOP");
+        m_top = null;
+        m_xdg_surfase = null;
+        super.dispose;
+    }
 
     abstract void closed();
 
@@ -84,32 +93,9 @@ protected:
      */
     abstract void configure(uint w, uint h, uint s);
 
-    bool askConfigure() 
+    void askConfigure() 
     {
-        return true;
-    }
-}
-
-template TopLevel(Protocols...) {
-    static if (Protocols.length == 0) {
-        // Без декораторов
-        class WithProtocols : XDGTopLevel {
-            this() {
-                super();
-            }
-        }
-    } else {
-        // Применяем декораторы
-        alias FirstProtocol = Protocols[0];
-        alias RestProtocols = Protocols[1..$];
-        alias InnerType = WithProtocols!(RestProtocols);
-        
-        class WithProtocols : FirstProtocol!(InnerType) {
-            this() {
-                auto inner = new InnerType();
-                super(inner);
-            }
-        }
+        //return true;
     }
 }
 
@@ -131,7 +117,7 @@ class DecoratedXDGTopLevel: XDGTopLevel
 
     this(SensitiveLayer input)
     {
-        super(input, width, heigh);
+        super(input);
         auto manager = XDGDecorationManager.get;
         if (!manager.empty())
             m_decor = zxdg_decoration_manager_v1_get_toplevel_decoration(manager.c_ptr,
@@ -144,17 +130,20 @@ class DecoratedXDGTopLevel: XDGTopLevel
         zxdg_toplevel_decoration_v1_set_mode(m_decor.c_ptr, mode);
     }
 
+    override void dispose()
+    {
+        writeln("Destroy decor");
+        m_decor = null;
+        super.dispose();
+    }
+
 package(wayland):
-    mixin RegistryProtocols!XDGDecorationManager;
+    
 
 private:
     Proxy!(zxdg_toplevel_decoration_v1, 
            ZXDG_TOPLEVEL_DECORATION_V1_DESTROY) m_decor;
 }
-
-
-
-private:
 
 final class XDGWmBase: GlobalProxy!(XDGWmBase, xdg_wm_base, xdg_wm_base_interface, XDG_WM_BASE_DESTROY)
 {   
@@ -168,13 +157,23 @@ final class XDGWmBase: GlobalProxy!(XDGWmBase, xdg_wm_base, xdg_wm_base_interfac
 
         xdg_wm_base_add_listener (c_ptr(), &listener, null);
     }
+
+    mixin RegistryProtocols!XDGWmBase;
 }
 
 final class XDGDecorationManager: GlobalProxy!(XDGDecorationManager, 
                                             zxdg_decoration_manager_v1, 
                                             zxdg_decoration_manager_v1_interface, 
                                             ZXDG_DECORATION_MANAGER_V1_DESTROY)
-{}
+{
+    mixin RegistryProtocols!XDGDecorationManager;
+}
+
+
+
+private:
+
+
 
 extern (C) nothrow {
 
@@ -229,8 +228,8 @@ void cb_xdgconfigure(void* data, xdg_surface *xdg_surf, uint32_t serial)
     auto inst = cast(XDGTopLevel)data;
 
     try{
-        if (inst.askConfigure)
-            xdg_surface_ack_configure(xdg_surf, serial);
+        xdg_surface_ack_configure(xdg_surf, serial);
+        inst.askConfigure();
     }
     catch(Exception e)
         Logger.error("Callback XDGTopLevel configure failed: %s", e.msg);

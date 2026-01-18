@@ -7,6 +7,7 @@ import std.string;
 
 import wayland.internal.core;
 import wayland.logger;
+import std.stdio;
 
 /** 
  * Статический класс для одного потока
@@ -24,26 +25,26 @@ public:
         globals.reserve(T.length * 2);
 
         static foreach (Type; T) {
-            Type.registry(globals);
+            static if (__traits(hasMember, Type, "registry")) {
+                Type.registry(globals);  
+            }
         }
 
         inst = Display(name, globals);
     }
 
-    static ~this()
+    void dispose()
     {
         if (native) {
-            auto ref dpy = Display.instance;
-
-            foreach(surf; dpy.m_surface_pool)
-                surf.dispose();
-            foreach(global; dpy.m_globals)
+            
+            foreach(global; m_globals){ 
                 global.dispose();
+            }
 
-	        wl_proxy_destroy(cast(wl_proxy*)dpy.m_compositor);
-	        wl_registry_destroy(dpy.m_registry);
+            wl_proxy_destroy(cast(wl_proxy*)m_compositor);
+            wl_registry_destroy(m_registry);
 
-	        wl_display_disconnect(native);
+            wl_display_disconnect(native);
         }
     }
 
@@ -63,7 +64,6 @@ package:
     }
 
     Timer kb_repeat;
-    SurfaceInterface[wl_surface*] m_surface_pool;
 
 private:
     static Display inst;
@@ -250,18 +250,21 @@ struct GlobalIterator
 
     Global[] m_protocols;
     uint index;
-
+import std.stdio;
     Global find(const(char)* str) nothrow @nogc
-    { 
+    {
         for(size_t i = index; i < m_protocols.length; ++i) {
+        import std.string : fromStringz;
+            
+        
             if (strcmp(str, m_protocols[i].name()) == 0){
                 auto res = m_protocols[i];
-
+ 
                 if (i != index){
                     m_protocols[i] = m_protocols[index];
                     m_protocols[index] = res;
                 }
-
+ 
                 ++index;
                 return res;
             }
