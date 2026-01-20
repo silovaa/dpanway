@@ -10,17 +10,19 @@ import std.stdio;
 int main()
 {
     try {
-        egl_connect!(DecoratedXDGTopLevel);//, XDGDecoration);
+        egl_connect!Protocols;//, XDGDecoration);
 
         bool isrun = true;
         auto window = new Window(200, 400);
 
-        window.setTitle("Example application");
+        window.toplevel.setTitle("Example application");
         window.onClosed = (){isrun = false;};
 
         while(isrun) {
             event_wait();
         }
+
+        egl_disconnect();
     }
     catch(Exception e) {
         writeln(e.msg);

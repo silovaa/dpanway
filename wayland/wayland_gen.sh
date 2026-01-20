@@ -22,6 +22,7 @@ mkdir -p "$OUT_DIR"
 IMPORT_FILE="$OUT_DIR/wayland_import.c"
 echo '#include <wayland-client.h>' > "$IMPORT_FILE"
 
+
 if [ "$MODE" == "egl" ]; then
     echo "🔹 Режим EGL: добавляем расширенные протоколы"
    # PROTOCOLS+=("linux-dmabuf-unstable-v1" "presentation-time")

@@ -2,7 +2,6 @@ module wayland.xdg_shell;
 
 import wayland.internal.core;
 import wayland.surface;
-import wayland.sensitive_layer;
 import wayland.logger;
 
 import std.exception;
@@ -12,48 +11,46 @@ enum XDGState
     resizing  = 1 << XDG_TOPLEVEL_STATE_RESIZING,
     maximized = 1 << XDG_TOPLEVEL_STATE_MAXIMIZED,
     activated = 1 << XDG_TOPLEVEL_STATE_ACTIVATED,
-    fullscreen = 1 << XDG_TOPLEVEL_STATE_FULLSCREEN
+    fullscreen = 1 << XDG_TOPLEVEL_STATE_FULLSCREEN,
+    tiled_left = 1 <<XDG_TOPLEVEL_STATE_TILED_LEFT,
+    tiled_right = 1 <<XDG_TOPLEVEL_STATE_TILED_LEFT,
+    tiled_top = 1 <<XDG_TOPLEVEL_STATE_TILED_TOP,
+    tilled_bottom = 1 <<XDG_TOPLEVEL_STATE_TILED_BOTTOM,
+    suspend = 1<<XDG_TOPLEVEL_STATE_SUSPENDED,
+    constrained_left =1 <<XDG_TOPLEVEL_STATE_CONSTRAINED_LEFT,
+    constrained_right =1 <<XDG_TOPLEVEL_STATE_CONSTRAINED_RIGHT,
+    constrained_top = 1<<XDG_TOPLEVEL_STATE_CONSTRAINED_TOP,
+    constrained_bottom = 1<<XDG_TOPLEVEL_STATE_CONSTRAINED_BOTTOM
 }
 
-class XDGTopLevel: Surface
+struct XDGTopLevel
 {
-public:
-    this(uint width, uint height)
-    {
-        construct(width, height);
-    }
+     void delegate() onClosed;
 
-    this(SensitiveLayer input, uint width, uint heigh)
-    {
-        super(input);
-        construct(width, heigh);
-    }
+    /**
+     * configure called by the composer when the state (s) 
+     * and/or window dimensions (w, h) change 
+     */
+    void delegate(uint w, uint h, uint s) onConfigure;
 
-    final void setTitle(const(char)* title)
-    {xdg_toplevel_set_title(m_top.c_ptr(), title);}
+    void delegate() onAskConfigure;
 
-    final void setAppID(const(char)* id)
-    {xdg_toplevel_set_app_id(m_top.c_ptr(), id);}
+    void setTitle(const(char)* title)
+    {xdg_toplevel_set_title(m_top, title);}
 
-    // final inout(xdg_toplevel)* c_ptr() inout
-    // {return m_top.c_ptr();}
+    void setAppID(const(char)* id)
+    {xdg_toplevel_set_app_id(m_top, id);}
 
 package(wayland):
-    mixin RegistryProtocols!XDGWmBase;
-
-private:
-    Proxy!(xdg_surface,  XDG_SURFACE_DESTROY)  m_xdg_surfase;
-    Proxy!(xdg_toplevel, XDG_TOPLEVEL_DESTROY) m_top;
-
-    void construct(uint width, uint height)
+    void setup(T)(ref ProtocolStore!T prot)
     {
-        auto xdg_base = XDGWmBase.get();
-
-        if (!xdg_base.empty()){
-            m_xdg_surfase = enforce(xdg_wm_base_get_xdg_surface(xdg_base.c_ptr, c_ptr),
+        if (globalValid()){
+            
+            m_xdg_surfase = enforce(xdg_wm_base_get_xdg_surface(m_global.c_ptr, 
+                                                                prot.surface.c_ptr),
                                     "Can't create xdg surface");
                 
-            m_top = enforce(xdg_surface_get_toplevel(m_xdg_surfase.c_ptr),
+            m_top = enforce(xdg_surface_get_toplevel(m_xdg_surfase),
                             "Can't create toplevel role");
 
             __gshared xdg_toplevel_listener toplevel_lsr = {
@@ -62,79 +59,76 @@ private:
                 configure_bounds: &cb_configure_bounds,
                 wm_capabilities : &cb_wm_capabilities
             };
-            xdg_toplevel_add_listener(m_top.c_ptr(), &toplevel_lsr, cast(void*)this);
+            xdg_toplevel_add_listener(m_top, &toplevel_lsr, cast(void*)&this);
 
             __gshared xdg_surface_listener surface_lsr = {
                 configure: &cb_xdgconfigure
             };
-            xdg_surface_add_listener (m_xdg_surfase.c_ptr(), 
-                                      &surface_lsr,cast(void*) this);
+            xdg_surface_add_listener (m_xdg_surfase, 
+                                      &surface_lsr,cast(void*)&this);
             
-            commit();
+            prot.surface.commit();
         }
+    } 
 
-        m_width  = width;
-        m_height = height;
+    void dispose()
+    {
+        if (m_top) {
+            xdg_toplevel_destroy(m_top);
+            xdg_surface_destroy(m_xdg_surfase);
+        }
     }
 
-protected:
-    uint32_t m_width ;
-    uint32_t m_height;
-    uint32_t m_state ;
+    mixin GlobalFactory!XDGWmBase;
 
-    abstract void closed();
+private:
+    xdg_surface*  m_xdg_surfase;
+    xdg_toplevel* m_top;
 
-    /**
-     * configure called by the composer when the state (s) 
-     * and/or window dimensions (w, h) change 
-     */
-    abstract void configure(uint w, uint h, uint s);
+    xdg_toplevel* c_ptr() {return m_top;}
 }
 
 enum DecorMode {
     ServerSide = ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
 }
 
-class DecoratedXDGTopLevel: XDGTopLevel
+struct XDGDecorated
 {
-    this(uint width, uint height)
+    void decorMode(DecorMode mode)
     {
-        super(width, height);
-        auto manager = XDGDecorationManager.get;
-        if (!manager.empty())
-            m_decor = zxdg_decoration_manager_v1_get_toplevel_decoration(manager.c_ptr,
-                                                                        m_top.c_ptr);
-        decorMode(DecorMode.ServerSide);
-    }
-
-    this(SensitiveLayer input, uint width, uint heigh)
-    {
-        super(input, width, heigh);
-        auto manager = XDGDecorationManager.get;
-        if (!manager.empty())
-            m_decor = zxdg_decoration_manager_v1_get_toplevel_decoration(manager.c_ptr,
-                                                                        m_top.c_ptr);
-        decorMode(DecorMode.ServerSide);
-    }
-
-    final void decorMode(DecorMode mode)
-    {
-        zxdg_toplevel_decoration_v1_set_mode(m_decor.c_ptr, mode);
+        zxdg_toplevel_decoration_v1_set_mode(m_decor, mode);
     }
 
 package(wayland):
-    mixin RegistryProtocols!XDGDecorationManager;
+    void setup(T)(ref ProtocolStore!(T) prot) 
+    {
+        if (globalValid()){
+           
+            m_decor = zxdg_decoration_manager_v1_get_toplevel_decoration(
+                m_global.c_ptr,
+                prot.get!XDGTopLevel.c_ptr());
+
+            decorMode(DecorMode.ServerSide);
+        }
+    }
+
+    void dispose()
+    {
+        if (m_decor !is null){
+            zxdg_toplevel_decoration_v1_destroy(m_decor);
+            m_decor = null;
+        }
+    }
+
+    mixin GlobalFactory!XDGDecorationManager;
 
 private:
-    Proxy!(zxdg_toplevel_decoration_v1, 
-           ZXDG_TOPLEVEL_DECORATION_V1_DESTROY) m_decor;
+    zxdg_toplevel_decoration_v1* m_decor;
 }
 
-
-
 private:
 
-final class XDGWmBase: GlobalProxy!(XDGWmBase, xdg_wm_base, xdg_wm_base_interface, XDG_WM_BASE_DESTROY)
+final class XDGWmBase: GlobalProxy!(xdg_wm_base, xdg_wm_base_interface, XDG_WM_BASE_DESTROY)
 {   
     override void bind(wl_registry *reg, uint name, uint vers)
     {
@@ -148,11 +142,9 @@ final class XDGWmBase: GlobalProxy!(XDGWmBase, xdg_wm_base, xdg_wm_base_interfac
     }
 }
 
-final class XDGDecorationManager: GlobalProxy!(XDGDecorationManager, 
-                                            zxdg_decoration_manager_v1, 
-                                            zxdg_decoration_manager_v1_interface, 
-                                            ZXDG_DECORATION_MANAGER_V1_DESTROY)
-{}
+alias XDGDecorationManager = GlobalProxy!(zxdg_decoration_manager_v1, 
+                                        zxdg_decoration_manager_v1_interface, 
+                                        ZXDG_DECORATION_MANAGER_V1_DESTROY);
 
 extern (C) nothrow {
 
@@ -168,28 +160,28 @@ void cb_ping(void*, xdg_wm_base *wm_base, uint serial)
 void cb_configure(void* data, xdg_toplevel *tt,
                     int width, int height, wl_array* states)
 {
+    try{
+        auto inst = cast(XDGTopLevel*)data;
+        uint state_res;
 
-    auto inst = cast(XDGTopLevel)data;
-    inst.m_state = 0;
+        uint32_t[] statesSlice = 
+            (cast(uint32_t*) states.data)[0 .. states.size / uint32_t.sizeof];
 
-    uint32_t[] statesSlice = 
-        (cast(uint32_t*) states.data)[0 .. states.size / uint32_t.sizeof];
+        foreach (state; statesSlice) {
+            state_res |= (1 << state);
+        }
 
-    foreach (state; statesSlice) {
-        inst.m_state |= (1 << state);
+        if (inst.onConfigure) inst.onConfigure(width, height, state_res);
     }
-
-    if (width && height){
-        inst.m_width  = width;
-        inst.m_height = height;
-    }
+        catch(Exception e)
+            Logger.error("Callback XDGTopLevel configure failed: %s", e.msg);
 }
 
 void cb_close(void *data, xdg_toplevel*)
 {
-    auto inst = cast(XDGTopLevel)data;
+    auto inst = cast(XDGTopLevel*)data;
     try{
-        inst.closed();
+        if(inst.onClosed) inst.onClosed();
     }
     catch(Exception e)
         Logger.error("Callback XDGTopLevel close failed: %s", e.msg);
@@ -204,11 +196,11 @@ void cb_wm_capabilities(void *data, xdg_toplevel *xdg_toplevel,
 
 void cb_xdgconfigure(void* data, xdg_surface *xdg_surf, uint32_t serial)
 {
-    auto inst = cast(XDGTopLevel)data;
+    auto inst = cast(XDGTopLevel*)data;
 
     try{
         xdg_surface_ack_configure(xdg_surf, serial);
-        inst.configure(inst.m_width, inst.m_height, inst.m_state);
+        if(inst.onAskConfigure) inst.onAskConfigure();
     }
     catch(Exception e)
         Logger.error("Callback XDGTopLevel configure failed: %s", e.msg);

@@ -6,7 +6,9 @@ import std.exception;
 import std.string;
 
 import wayland.internal.core;
+import wayland.input_layer;
 import wayland.logger;
+import std.stdio;
 
 /** 
  * Статический класс для одного потока
@@ -16,34 +18,57 @@ struct Display
 public:
     @disable this(this);
 
-    static void connect(T...)(const(char)* name = null)
+    static void connect(T)(const(char)* name = null)
     {
-        assert(!native, "wayland display is already initialized");
-       
-        Global[] globals; 
-        globals.reserve(T.length * 2);
+        assert(!native, "Display already initialized");
+        Global[] globals;
+        
+        // Проверка, что T — это структура (ваша struct Protocols)
+        static if (is(T == struct)) 
+        {
+            static foreach (m; __traits(allMembers, T)) 
+            {
+                // Используем фигурные скобки для изоляции области видимости каждой итерации
+                {
+                    // Получаем тип поля 'm' внутри структуры T
+                    alias FieldType = typeof(__traits(getMember, T.init, m));
 
-        static foreach (Type; T) {
-            Type.registry(globals);
+                    // Проверяем наличие статического метода create у типа поля
+                    static if (__traits(hasMember, FieldType, "create")) 
+                    {
+                        // Вызываем статический метод и регистрируем протокол
+                        auto g = FieldType.create();
+                        if (g !is null) 
+                        {
+                            globals ~= g;
+                            
+                            import std.stdio : writefln;
+                            debug writefln("Протокол %s (тип %s) успешно зарегистрирован", m, FieldType.stringof);
+                        }
+                    }
+                }
+            }
         }
-
+        else 
+        {
+            static assert(0, "connect ожидает структуру Protocols в качестве аргумента шаблона");
+        }
+    
         inst = Display(name, globals);
     }
 
-    static ~this()
+    void dispose()
     {
         if (native) {
-            auto ref dpy = Display.instance;
-
-            foreach(surf; dpy.m_surface_pool)
-                surf.dispose();
-            foreach(global; dpy.m_globals)
+            
+            foreach(global; m_globals){ 
                 global.dispose();
+            }
 
-	        wl_proxy_destroy(cast(wl_proxy*)dpy.m_compositor);
-	        wl_registry_destroy(dpy.m_registry);
+            wl_proxy_destroy(cast(wl_proxy*)m_compositor);
+            wl_registry_destroy(m_registry);
 
-	        wl_display_disconnect(native);
+            wl_display_disconnect(native);
         }
     }
 
@@ -63,7 +88,6 @@ package:
     }
 
     Timer kb_repeat;
-    SurfaceInterface[wl_surface*] m_surface_pool;
 
 private:
     static Display inst;
@@ -180,16 +204,11 @@ package:
 import core.sys.linux.timerfd;
 import core.sys.posix.unistd : close, read;
 
-interface SurfaceInterface
-{
-    void dispose();
-}
-
 struct Timer
 {
-    this(void delegate() callback)
+    this(KeyMapper mapper)
     {
-        cb_emit = callback;
+        kb_mapper = mapper;
         Display.instance.m_fds[EventT.key].fd = 
             timerfd_create(CLOCK_MONOTONIC,
                            TFD_CLOEXEC | TFD_NONBLOCK);
@@ -204,21 +223,23 @@ struct Timer
         }
     }
 
-    void set_time(ref itimerspec tspec) const nothrow @nogc
+    void set_time(ref itimerspec tspec, InputLayer input) nothrow @nogc
     {
+        kb_input = input;
         auto fd = Display.instance.m_fds[EventT.key].fd;
         timerfd_settime(fd, 0, &tspec, null);
     }
 
 private:
-    void delegate() cb_emit;
+    InputLayer kb_input;
+    KeyMapper kb_mapper;
 
     void emit(int fd) 
     {
         ulong repeats;
         if (read(fd, &repeats, repeats.sizeof) == 8) {
             for (ulong i = 0; i < repeats; i++)
-                cb_emit();
+                kb_input.key(kb_mapper);
         }
     }
 }
@@ -250,18 +271,21 @@ struct GlobalIterator
 
     Global[] m_protocols;
     uint index;
-
+import std.stdio;
     Global find(const(char)* str) nothrow @nogc
-    { 
+    {
         for(size_t i = index; i < m_protocols.length; ++i) {
+        import std.string : fromStringz;
+            
+        
             if (strcmp(str, m_protocols[i].name()) == 0){
                 auto res = m_protocols[i];
-
+ 
                 if (i != index){
                     m_protocols[i] = m_protocols[index];
                     m_protocols[index] = res;
                 }
-
+ 
                 ++index;
                 return res;
             }

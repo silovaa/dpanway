@@ -1,19 +1,25 @@
 module window;
 
 import std.stdio;
-
-//import wayland.core;
-//import wayland.xdg_shell_protocol;
 import wayland;
-//import egl;
-// import opengl.gl3; 
 
-class Window: DecoratedXDGTopLevel
+class Window: InputLayer
 {
+    ProtocolStore!Protocols wl;
+    alias wl this;
+
     this (uint wigth, uint height)
     {
-        super(wigth, height);
-        m_context = EGLWindowContext(this, wigth, height);
+        wl.toplevel.onClosed  = &closed;
+        wl.toplevel.onConfigure = &configure;
+        wl.toplevel.onAskConfigure = &askConfigure;
+        wl.scale.onScaleChanged = &on_scale_changed;   
+ 
+        wl.setupAll();
+        wl.seat.bind(wl, this);
+
+        ww=wigth; hh = height;
+        m_context = EGLWaylandContext(wl.surface, wigth, height);
         // m_width = wigth;
         // m_height = height;
         writeln("Window Ctor");
@@ -32,8 +38,8 @@ writeln("Window Dtor");
     //     return m_egl.create(display);
     // }
 
-    override void configure(uint w, uint h, uint s)
-    {
+    void configure(uint w, uint h, uint s)
+    {writeln("Window configure ", w, " ", h, " ", s);
         //  m_width = w; m_height = h;
 
         // if (m_egl_window) 
@@ -42,27 +48,51 @@ writeln("Window Dtor");
         //     m_egl_window = wl_egl_window_create(m_surface, w, h);
         //     m_egl.createSurface(m_egl_window);
         // }
-        if (w != 0 && h != 0){
+        
+        if ((w != ww || h != hh) && !start){
             m_context.resize(w, h);
+            ww = w; hh =h;
             m_context.swapBuffers();
         }
 
-        writeln("Window configure ", w, " ", h, " ", s);
+        //writeln("Window configure ", w, " ", h, " ", s);
+    }
+
+    void askConfigure()
+    {
+        if (start){
+            m_context.makeCurrent();
+            m_context.swapBuffers();
+            start = false;
+        }
     }
 
     void delegate() onClosed;
 
-    override void closed()
+    void closed()
     {
         if (onClosed) onClosed();
+        m_context.terminate();
+        wl.dispose();
         writeln("Window closed");
     }
 
-    override void on_scale_changed(float factor)
+    void on_scale_changed(float factor)
     {
 //Logger.info("Window on_scale_changed %f", factor);
 writeln("scale ", factor);
     }
+
+    override void keyFocused(bool f){writeln("keyFocused ", f);}
+    override void key(const KeyMapper m){writeln("key ", m.symbol);}
+    override void point(PointerState s, Pointer p){writeln("point ", s);}
+    override void point_motion(uint u, Pointer p){writeln("point_motion ", u);}
+
+    override void click(PointerButton button ,
+                bool         pressed,
+                int          count,
+                uint         key_mod){writeln("point_click ", button);}
+    override void scroll(int time, int axis, double value){}
 
     // override void draw() nothrow
     // {
@@ -88,7 +118,9 @@ writeln("scale ", factor);
     // }
 
 private:
-    EGLWindowContext m_context;
+    EGLWaylandContext m_context;
+    uint ww, hh;
+    bool start = true;
 //     EglWaylandClient m_egl;
 //     Wl_egl_window* m_egl_window;
 }

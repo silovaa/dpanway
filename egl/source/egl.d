@@ -31,6 +31,7 @@ struct DisplayTag(string tag)
     static void terminate() 
     {
         if (m_display !is null){ 
+            eglDestroyContext(m_display, m_context);
             eglTerminate(m_display);
             m_display = null;
         }
@@ -42,32 +43,9 @@ struct DisplayTag(string tag)
         return m_display;
     }
 
-    // static ref const(DisplayTag) instance()
-    // {
-    //     assert (s_inst.m_display !is null, "egl display is not initialized");
-    //     return s_inst;
-    // }
-
-    static ~this() 
-    { 
-        if (m_display !is null)
-            eglTerminate(m_display);
-    }
-
-    // EGLContext createContext(EGLConfig cfg, immutable int[] contextAttribs) const
-    // {
-    //     return enforce(eglCreateContext(m_display, cfg, null, contextAttribs.ptr),
-    //                  "Could not create context!");
-    // }
-
-    // EGLSurface createWindowSurface(EGLConfig cfg, void* native_window) const
-    // {
-    //     return enforce(eglCreateWindowSurface(m_display, cfg, m_native, null), 
-    //                 "Could not create surface!");
-    // }
-
 private:
     static EGLDisplay m_display;
+    static EGLContext m_context;
 
     //static Display s_inst;
 }
@@ -116,29 +94,34 @@ struct WindowContextES3
                             "Could not create context!");
         m_surface = enforce(eglCreateWindowSurface(display, config, native_window, null), 
                             "Could not create surface!");
-
-        enforce(eglMakeCurrent(display, m_surface, m_surface, m_context) != 0, 
-                "Could not make context current!");
+        
+        Display.m_context = m_context;
 
         scope(failure) terminate();
     }
 
     @disable this(this);
 
-    ~this()
-    { terminate(); }
-
     void terminate() 
     {
         auto display = Display.c_ptr;
-        if (m_context) eglDestroyContext(display, m_context);
-        if (m_surface) eglDestroySurface(display, m_surface);
+        if (m_surface){
+            eglMakeCurrent(display, null, null, null);
+            eglDestroySurface(display, m_surface);
+            m_surface =  null;
+        }
     }
 
     void swapBuffers() 
     {
         enforce(eglSwapBuffers(Display.c_ptr, m_surface), 
                 "Could not complete eglSwapBuffers.");
+    }
+
+    void makeCurrent()
+    {
+        enforce(eglMakeCurrent(Display.c_ptr, m_surface, m_surface, m_context) != 0, 
+            "Could not make context current!");
     }
 
 private:

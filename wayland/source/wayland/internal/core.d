@@ -2,48 +2,9 @@ module wayland.internal.core;
 
 public import wayland_import;
 import wayland.logger;
+import std.stdio;
 
 package(wayland):
-
-nothrow @nogc struct Proxy (T, int Destroy_code) 
-{
-    this(T* p) {m_ptr = p;}
-
-    @disable this(this);
-
-    ~this()
-    {
-        if (m_ptr)
-            cast(void) wl_proxy_marshal_flags(cast(wl_proxy*)m_ptr, Destroy_code, null, 
-                                   versionNum(), WL_MARSHAL_FLAG_DESTROY);
-    }
-
-    uint versionNum() const 
-    {
-        return m_ptr ? wl_proxy_get_version(cast(wl_proxy*)m_ptr) : 0;
-    }
-
-    void opAssign(T* ptr) 
-    {
-        if (m_ptr != ptr) {
-            if (m_ptr)
-                cast(void) wl_proxy_marshal_flags(cast(wl_proxy*)m_ptr, Destroy_code, null, 
-                                    versionNum(), WL_MARSHAL_FLAG_DESTROY);
-            m_ptr = ptr;
-        }
-    }
-
-    B opCast(B: bool)() const
-    {
-        return m_ptr !is null;
-    }
-
-    inout(T)* c_ptr() inout
-    {return m_ptr;}
-
-private:
-    T* m_ptr;
-}
 
 interface Global
 {
@@ -52,98 +13,75 @@ interface Global
     void dispose();
 } 
 
-class GlobalProxy(Self, T, alias wliface, int Destroy_code): Global
+class GlobalProxy(T, alias wliface, int Destroy_code): Global
 {
-private: 
-    wl_proxy* m_proxy;
-    static Self s_instance;
-
-package(wayland):
-    import std.stdio;
-
-    static Global create()
-    {
-        //import std.conv : emplace;
-        //To do emplace Self
-        
-        if (s_instance is null){
-            s_instance = new Self;
-
-            writeln("instance create ", Self.stringof);
-        }
-
-        return s_instance;
-    }
-
-    static Self get()
-    {
-        assert(s_instance !is null, "global not registered in Display");
-        
-        return s_instance;
-    }
-
-    final inout(T)* c_ptr() inout
-    {return cast(T*)m_proxy;}
-
-    final bool empty() const nothrow @nogc @safe
-    {
-        return m_proxy is null;
-    }
-
-protected:
     final override const(char)* name() const nothrow @nogc 
     {
         return wliface.name; 
     }
 
     override void bind(wl_registry* reg, uint name_id, uint vers)
-    {
+    {   
         m_proxy = cast(wl_proxy*)wl_registry_bind(reg, name_id, &wliface, vers);
     }
 
     override void dispose()
     {
-        cast(void) wl_proxy_marshal_flags(m_proxy, Destroy_code, null, 
+        if (m_proxy){
+            debug writeln("Destroy global", name);
+            cast(void) wl_proxy_marshal_flags(m_proxy, Destroy_code, null, 
                                     wl_proxy_get_version(m_proxy),
                                     WL_MARSHAL_FLAG_DESTROY);
+        
+            m_proxy = null;
+        }
     }
+
+private: 
+    wl_proxy* m_proxy = null;
+
+package(wayland):
+
+    final bool empty() const nothrow @nogc @safe
+    {
+        return m_proxy is null;
+    }
+
+    final inout(T)* c_ptr() inout
+    {return cast(T*)m_proxy;}
 }
 
-mixin template RegistryProtocols(T...)
-{
-    static void registry(out Global[] reg)
+mixin template GlobalFactory(GlobalClass) {
+    private static GlobalClass m_global;
+
+    private bool globalValid() const
     {
-        alias Parent = typeof(super);
-        static if (__traits(hasMember, Parent, "registry"))
-        {
-            Parent.registry(reg);
+        assert(m_global !is null, "global not created");
+
+        if (m_global.empty()){
+            Logger.info("Protokol %s not supported", m_global.name);
+            return false;
         }
 
-        // 2. Итерация по типам T и вызов их статических методов create
-        static foreach (Type; T)
-        {
-            static if (__traits(hasMember, Type, "create"))
-            {
-                // Вызываем Type.create() и проверяем, что результат — это Global
-                auto g = Type.create();
-
-                static if (is(typeof(g) : Global))
-                {
-                    reg ~= g;
-                }
-                else
-                {
-                    static assert(0,
-                     "Type " ~ Type.stringof ~ ".create() должен возвращать Global");
-                }
-            }
-            else
-            {
-                static assert(0,
-                 "Type " ~ Type.stringof ~ " должен иметь статическую функцию create()");
-            }
-        }
+        return true;
     }
+
+    package(wayland)
+        // Статическая функция создания
+        static Global create() 
+        {
+            if (m_global is null) {
+                m_global = new GlobalClass();
+            }
+            return m_global;
+        }
+
+        static GlobalClass get() nothrow @nogc
+        {
+            assert(m_global !is null, "global not created");
+
+            return m_global;
+        }
 }
 
 extern(C) nothrow @nogc {
