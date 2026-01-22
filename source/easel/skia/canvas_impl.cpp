@@ -29,20 +29,6 @@ public:
 
     StateCanvas(SkCanvas* ctx);
 
-    SkPath&           path();
-    SkPaint&          fill_paint();
-    SkPaint&          stroke_paint();
-    class font&       font();
-    int&              text_align();
-    SkPaint&          clear_paint();
-
-    void              save();
-    void              restore();
-    affine_transform  get_inv_affine() const;
-    void              set_inv_affine(affine_transform xf);
-
-    static SkPaint&   get_fill_paint(canvas const& cnv);
-
     SkCanvas* _context;
 
 private:
@@ -350,12 +336,12 @@ extern "C" {
       cnv->current()->_stroke_paint.setShader(nullptr);
    }
 
-   void canvas::line_width(StateCanvas *cnv, float w)
+   void line_width(StateCanvas *cnv, float w)
    { 
-      _state->stroke_paint().setStrokeWidth(w);
+      cnv->current()->_stroke_paint.setStrokeWidth(w);
    }
 
-   void canvas::line_cap(line_cap_enum cap_)
+   void line_cap(StateCanvas *cnv, LineCap cap_)
    {
       SkPaint::Cap cap = SkPaint::kButt_Cap;
       switch (cap_)
