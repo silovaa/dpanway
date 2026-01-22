@@ -1,38 +1,45 @@
-module easel.skia.canvas;
+module easel.canvas;
+
+import easel.rect;
+
+version(skia) import easel.skia.sdk;
 
 struct Canvas
 {
     ///////////////////////////////////////////////////////////////////////////////////
     // Transforms
-    void              translate(point p);
-    void              rotate(float rad);
-    void              scale(point p);
-    void              skew(double sx, double sy);
-    point             device_to_user(point p);
-    point             user_to_device(point p);
+    void translate(point p) {translate(m_impl, p.x, p.y);}
+    void rotate(float rad)  {rotate(m_impl, rad);}
+    void scale(point p)     {scale(m_impl, p.x, p.y);}
+    void scale(float xy)    {scale(m_impl, xy, xy);}
+    void skew(double sx, double sy){skew(m_impl, sx, sy);}
 
-    void              translate(float x, float y);
-    void              scale(float xy);
-    void              scale(float x, float y);
-    point             device_to_user(float x, float y);
-    point             user_to_device(float x, float y);
+    // point             device_to_user(point p);
+    // point             user_to_device(point p);
 
-    affine_transform  transform() const;
-    void              transform(affine_transform const& mat);
-    void              transform(double a, double b, double c, double d, double tx, double ty);
+    // void              translate(float x, float y){translate(m_impl, x, y);}
+    // void              scale(float xy);
+    // void              scale(float x, float y){}
+    // point             device_to_user(float x, float y);
+    // point             user_to_device(float x, float y);
+
+    AffineTransform   transform() {return transform(m_impl);}
+    void              transform(const ref AffineTransform mat) {transform(m_impl, mat);}
+    void              transform(double a, double b, double c, double d, double tx, double ty)
+                    {transform(AffineTransform(a, b, c, d, tx, ty));}
 
     ///////////////////////////////////////////////////////////////////////////////////
     // Paths
-    void              begin_path();
-    void              close_path();
-    void              fill();
-    void              fill_preserve();
-    void              stroke();
-    void              stroke_preserve();
+    void begin_path(){begin_path(m_impl);}
+    void close_path(){close_path(m_impl);}
+    void fill(){fill_preserve; begin_path;}
+    void fill_preserve(){fill_preserve(m_impl);}
+    void stroke(){stroke_preserve; begin_path;}
+    void stroke_preserve(){stroke_preserve(m_impl);}
 
-    void              clip();
-    void              clip(path const& p);
-    rect              clip_extent() const;
+    void clip(){clip(m_impl);}
+   //void              clip(path const& p);
+    Rect clip_extent() {return clip_extent(m_impl);}
     bool              point_in_path(point p) const;
     bool              point_in_path(float x, float y) const;
     rect              fill_extent() const;
@@ -81,4 +88,6 @@ struct Canvas
                         float cp2x, float cp2y,
                         float x, float y
                     );
+
+    private CanvasImpl m_impl;
 }
