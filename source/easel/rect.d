@@ -33,9 +33,9 @@ struct Rect
         this(left, top, left + size.x, top + size.y);
     }
 
-    this(Point origin, Extent size) {
-        this(origin.x, origin.y, origin.x + size.x, origin.y + size.y);
-    }
+    // this(Point origin, Extent size) {
+    //     this(origin.x, origin.y, origin.x + size.x, origin.y + size.y);
+    // }
 
     @property {
         float width() const { return right - left; }
