@@ -8,10 +8,10 @@ alias CanvasImpl = StateCanvas*;
 import std.traits : Parameters;
 
 mixin template VoidMethod(string name, Args...) {
-    mixin(() {
+    enum code = () {
         import std.format;
 
-        // Формируем строку типов для сигнатуры: "T1 v1, T2 v2, ..."
+        // Формируем строку типов для сигнатуры: "T1 v1, T2 v2, ..."\
         string params;
         string args;
         static foreach (i, T; Args) {
@@ -23,15 +23,16 @@ mixin template VoidMethod(string name, Args...) {
         if (args.length > 2)   args   = args[0 .. $-2];
 
         return format(q{
-            // Объявляем внешнюю C++ функцию 
             private extern(C++) static void %1$s(CanvasImpl h, %2$s) @nogc;
 
-            // Публичный D-метод
             void %1$s(%2$s) @nogc {
                 %1$s(this.m_impl, %3$s);
             } 
         }, name, params, args);
-    }());
+    }();
+    pragma(msg, "--- Generated code for ", name, " ---\n", code, "-----------------------");
+
+    mixin(code);
 }
 
 mixin template BoolMethod(string name, Args...) {
