@@ -33,7 +33,7 @@ mixin template VoidMethod(string name, Args...) {
 
             // Высокоуровневый метод в D
             void %1$s(%2$s) @nogc {
-                %1$s(this.m_impl, %3$s);
+                %1$s(this.impl, %3$s);
             } 
         }, name, paramsStr, argsStr);
     }();
@@ -63,7 +63,7 @@ mixin template BoolMethod(string name, Args...) {
             private extern(C++) static bool %1$s(CanvasImpl h, %2$s) @nogc;
 
             bool %1$s(%2$s) @nogc {
-                return %1$s(this.m_impl, %3$s);
+                return %1$s(this.impl, %3$s);
             }
         }, name, params, args);
     }());

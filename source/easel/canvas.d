@@ -7,10 +7,13 @@ import easel.skia.sdk;
 
 struct Canvas
 {
-    void configure(int width, int height, int sample, int stencil) 
+    private extern(C++) static CanvasImpl make_canvas(int, int, int, int);
+    void configure(int width, int height, int sample = 4, int stencil = 8) 
     {
-         
+        m_impl = make_canvas(width, height, sample, stencil);
+        ensure(m_impl, "Internal backend error");
     }
+    
     ///////////////////////////////////////////////////////////////////////////////////
     // Transforms
     mixin VoidMethod!("translate", float , float); 
@@ -20,8 +23,8 @@ struct Canvas
 
     private extern(C++) static void transform(StateCanvas *cnv, ref AffineTransform);
     private extern(C++) static void transform(StateCanvas *cnv, const ref AffineTransform);
-    void transform(ref AffineTransform m){transform(m_impl, m);}
-    void transform(const ref AffineTransform m){transform(m_impl, m);}
+    void transform(ref AffineTransform m){transform(impl, m);}
+    void transform(const ref AffineTransform m){transform(impl, m);}
 
     mixin VoidMethod!("save");
     mixin VoidMethod!("restore");
@@ -32,7 +35,7 @@ struct Canvas
     mixin VoidMethod!("clip");
 
     private extern(C++) static Rect clip_extent(StateCanvas *cnv);
-    Rect clip_extent(){return clip_extent(m_impl);}
+    Rect clip_extent(){return clip_extent(impl);}
 
     mixin BoolMethod!("point_in_path", Point);
     mixin VoidMethod!("move_to", Point);
@@ -50,5 +53,10 @@ struct Canvas
     mixin VoidMethod!("stroke_style", float, float, float, float);
     mixin VoidMethod!("line_width", float); 
 
+    private inout CanvasImpl impl() inout
+    {
+        assert(m_impl !is null, "Canvas no configured");
+        return m_impl;
+    }
     private CanvasImpl m_impl;
 }
