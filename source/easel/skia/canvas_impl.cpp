@@ -16,6 +16,74 @@
 #include <SkTypeface.h>
 #include <SkFont.h>
 
+#include "gpu/ganesh/gl/GrGLAssembleInterface.h"
+
+#include "gpu/ganesh/GrDirectContext.h"
+#include "gpu/ganesh/gl/GrGLDirectContext.h"
+#include <EGL/egl.h>
+#include <GLES3/gl3.h> //for 
+
+#include "gpu/ganesh/gl/GrGLBackendSurface.h"
+#include "gpu/ganesh/SkSurfaceGanesh.h"
+
+// Функция-загрузчик для EGL
+GrGLFuncPtr egl_get_proc(void* ctx, const char name[]) {
+    return eglGetProcAddress(name);
+}
+
+class ContextEGL
+{
+   SkCanvas* make_canvas(int width, int height, 
+                         int sample = 4, int stencil = 8);
+   void destroy();
+   void flush()
+   {dContext->flush();}
+
+private:
+   ContextEGL():
+      glInterface(GrGLMakeAssembledInterface(nullptr, egl_get_proc)),
+      dContext(GrDirectContexts::MakeGL(glInterface))
+   {}
+
+   sk_sp<const GrGLInterface> glInterface;
+   sk_sp<GrDirectContext> dContext;
+
+   sk_sp<SkSurface> surface;
+}
+
+SkCanvas* ContextEGL::make_canvas(int width, int height, int sample, int stencil)
+{
+   if (dContext){
+      GLint fboId;
+      glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fboId); // Получаем ID от EGL
+
+      GrGLFramebufferInfo fbInfo;
+      fbInfo.fFBOID = (GrGLuint)fboId;
+      fbInfo.fFormat = GL_RGBA8; // Формат должен совпадать с конфигом EGL
+
+      GrBackendRenderTarget backendRT = GrBackendRenderTargets::MakeGL(
+         width, height, 
+         sample, // sampleCount (MSAA)
+         stencil, // stencilBits
+         fbInfo
+      );
+
+      surface = SkSurfaces::WrapBackendRenderTarget(
+         ctx.dContext.get(),
+         backendRT,
+         kBottomLeft_GrSurfaceOrigin, // Стандарт для OpenGL/EGL
+         kRGBA_8888_SkColorType,      // Цветовой тип
+         nullptr,                     // ColorSpace (например, SkColorSpace::MakeSRGB())
+         nullptr                      // SurfaceProps
+      );
+
+      if (surface)
+         return surface->getCanvas();
+   }
+
+   return nullptr;
+}
+
 class StateCanvas
 {
 public:
@@ -29,7 +97,7 @@ public:
 
     StateCanvas(SkCanvas* ctx);
 
-    SkCanvas* _context;
+    SkCanvas* _canvas;
 
 private:
 
@@ -62,7 +130,7 @@ private:
 };
 
    StateCanvas::StateCanvas(SkCanvas* ctx):
-    _context(ctx)
+    _canvas(ctx)
    {
       _stack.push(std::make_unique<state_info>());
       _clear_paint.setAntiAlias(true);
@@ -127,7 +195,7 @@ private:
    }
 
 //    canvas::canvas(canvas_impl* context_)
-//     : _context{context_}
+//     : _canvas{context_}
 //     , _state{std::make_unique<canvas_state>()}
 //    {
 //       _state->set_inv_affine(transform().invert());
@@ -138,10 +206,10 @@ private:
 //    }
 
 
-void translate(StateCanvas *cnv, float x, float y){ cnv->_context->translate(x, y);}
-void rotate(StateCanvas *cnv, float rad){cnv->_context->rotate(rad * (180.0/pi));}
-void scale(StateCanvas *cnv, float x, float y){ cnv->_context->scale(x, y);}
-void skew(StateCanvas *cnv, double sx, double sy){cnv->_context->skew(sx, sy);}
+void translate(StateCanvas *cnv, float x, float y){ cnv->_canvas->translate(x, y);}
+void rotate(StateCanvas *cnv, float rad){cnv->_canvas->rotate(rad * (180.0/pi));}
+void scale(StateCanvas *cnv, float x, float y){ cnv->_canvas->scale(x, y);}
+void skew(StateCanvas *cnv, double sx, double sy){cnv->_canvas->skew(sx, sy);}
 
 // point canvas::device_to_user(point p)
 // {
@@ -177,7 +245,7 @@ struct AffineTransform {
 
 void transform(StateCanvas *cnv, AffineTransform& m) 
 {
-   auto mat = cnv->_context->getLocalToDeviceAs3x3();
+   auto mat = cnv->_canvas->getLocalToDeviceAs3x3();
    SkScalar sc[6];
    (void) mat.asAffine(sc);
    m.a = sc[0]; m.b = sc[1]; m.c = sc[2]; 
@@ -195,7 +263,7 @@ void transform(StateCanvas *cnv, AffineTransform const& mat)
       static_cast<SkScalar>(mat.ty)
    };
    mat.setAffine(sc);
-   cnv->_context->setMatrix(mat);
+   cnv->_canvas->setMatrix(mat);
 }
 
 // void canvas::transform(double a, double b, double c, double d, double tx, double ty)
@@ -203,18 +271,18 @@ void transform(StateCanvas *cnv, AffineTransform const& mat)
 //    SkMatrix mat;
 //    SkScalar sc[9] = {float(a), float(b), float(c), float(d), float(tx), float(ty)};
 //    mat.setAffine(sc);
-//    _context->setMatrix(mat);
+//    _canvas->setMatrix(mat);
 // }
 
 void save(StateCanvas *cnv)
 {
-   cnv->_context->save();
+   cnv->_canvas->save();
    cnv->_stack.push(std::make_unique<state_info>(*current()));
 }
 
 void restore(StateCanvas *cnv)
 {
-   cnv->_context->restore();
+   cnv->_canvas->restore();
    if (cnv->_stack.size())
       cnv->_stack.pop();
 }
@@ -224,25 +292,25 @@ void close_path(StateCanvas *cnv){cnv->current()->_path.close();}
 
 void fill_preserve(StateCanvas *cnv)
 {
-   cnv->_context->drawPath(cnv->current()->_path, 
+   cnv->_canvas->drawPath(cnv->current()->_path, 
                            cnv->current()->_fill_paint);
 }
 
 void stroke_preserve(StateCanvas *cnv)
 {
-   cnv->_context->drawPath(cnv->current()->_path, 
+   cnv->_canvas->drawPath(cnv->current()->_path, 
                            cnv->current()->_stroke_paint);
 }
 
 void clip(StateCanvas *cnv)
 {
-   cnv->_context->clipPath(cnv->current()->_path, true);
+   cnv->_canvas->clipPath(cnv->current()->_path, true);
    cnv->current()->_path.reset();
 }
 
 // void canvas::clip(class path const& p)
 // {
-//    _context->clipPath(*p.impl(), true);
+//    _canvas->clipPath(*p.impl(), true);
 // }
 struct Rect  {float l, t, r, b};
 struct Point {float x, y};
@@ -250,7 +318,7 @@ struct Point {float x, y};
 Rect clip_extent(StateCanvas *cnv)
 {
    SkRect r;
-   cnv->_context->getLocalClipBounds(&r);
+   cnv->_canvas->getLocalClipBounds(&r);
    return {r.left(), r.top(), r.right(), r.bottom()};
 }
 
@@ -290,16 +358,14 @@ void arc(StateCanvas *cnv,
    );
 }
 
-void add_rect(StateCanvas *cnv, Rect const& r)
+void add_rect(StateCanvas *cnv, float left, float top, float right, float bottom)
 {
-   cnv->current()->_path.addRect({r.left, r.top, r.right, r.bottom});
+   cnv->current()->_path.addRect(left, top, right, bottom);
 }
 
-struct Circle {float cx, cy, cr};
-
-void add_circle(StateCanvas *cnv, struct Circle const& c)
+void add_circle(StateCanvas *cnv, float cx, float cy, float r)
 {
-   cnv->current()->_path.addCircle(c.cx, c.cy, c.radius);
+   cnv->current()->_path.addCircle(cx, cy, r);
 }
 
 // void canvas::add_path(path const& p)
@@ -307,26 +373,26 @@ void add_circle(StateCanvas *cnv, struct Circle const& c)
 //    _state->path() = *p.impl();
 // }
 
-void clear_rect(StateCanvas *cnv, Rect const& r)
+void clear_rect(StateCanvas *cnv, float left, float top, float right, float bottom)
 {
-   cnv->_context->drawRect({r.l, r.t, r.r, r.b}, cnv->_state->_clear_paint);
+   cnv->_canvas->drawRect({left, top, right, bottom}, cnv->_state->_clear_paint);
+}
+ 
+void quadratic_curve_to(StateCanvas *cnv, float x, float y, float endx, float endy)
+{
+   cnv->current()->_path.quadTo(x, y, endx, endy);
 }
 
-void quadratic_curve_to(StateCanvas *cnv, Point cp, Point end)
+void bezier_curve_to(StateCanvas *cnv, float x1, float y1, float x2, float y2, float endx, float endy)
 {
-   cnv->current()->_path.quadTo(cp.x, cp.y, end.x, end.y);
+   cnv->current()->_path.cubicTo(x1, y1, x2, y2, endx, endy);
 }
 
-void bezier_curve_to(StateCanvas *cnv, point cp1, point cp2, point end)
-{
-   cnv->current()->_path.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y);
-}
+// struct Color {float r, g, b, a};
 
-struct Color {float r, g, b, a};
-
-void fill_style(StateCanvas *cnv, Color c)
+void fill_style(StateCanvas *cnv, float r, float g, float b, float a)
 {
-   cnv->current()->_fill_paint.setColor4f({c.r, c.g, c.b, c.a}, nullptr);
+   cnv->current()->_fill_paint.setColor4f({r, g, b, a}, nullptr);
    cnv->current()->_fill_paint.setShader(nullptr);
 }
 
@@ -373,7 +439,7 @@ void line_width(StateCanvas *cnv, float w)
 // void canvas::shadow_style(point offset, float blur, color c)
 // {
 //    constexpr auto blur_factor = 1.0f;
-//    auto matrix = _context->getTotalMatrix();
+//    auto matrix = _canvas->getTotalMatrix();
 //    float scx = matrix.getScaleX();
 //    float scy = matrix.getScaleY();
 
@@ -560,7 +626,7 @@ void line_width(StateCanvas *cnv, float w)
 //       utf8.data(), utf8.size(), *_state->font().impl().get()
 //    );
 //    prepare_text(_state->font(), _state->text_align(), p, utf8.data(), utf8.data()+utf8.size());
-//    _context->drawTextBlob(text_blob.get(), p.x, p.y, _state->fill_paint());
+//    _canvas->drawTextBlob(text_blob.get(), p.x, p.y, _state->fill_paint());
 // }
 
 // void canvas::stroke_text(std::string_view utf8, point p)
@@ -569,7 +635,7 @@ void line_width(StateCanvas *cnv, float w)
 //       utf8.data(), utf8.size(), *_state->font().impl().get()
 //    );
 //    prepare_text(_state->font(), _state->text_align(), p, utf8.data(), utf8.data()+ utf8.size());
-//    _context->drawTextBlob(text_blob.get(), p.x, p.y, _state->stroke_paint());
+//    _canvas->drawTextBlob(text_blob.get(), p.x, p.y, _state->stroke_paint());
 // }
 
 // canvas::text_metrics canvas::measure_text(std::string_view utf8)
@@ -613,11 +679,11 @@ void line_width(StateCanvas *cnv, float w)
 //             SkMatrix mat;
 //             mat.setScale(dest.width()/src.width(), dest.height()/src.height());
 //             mat.setTranslate(dest.left-src.left, dest.top-src.top);
-//             _context->drawPicture(that, &mat, &_state->fill_paint());
+//             _canvas->drawPicture(that, &mat, &_state->fill_paint());
 //          }
 //          if constexpr(std::is_same_v<T, SkBitmap>)
 //          {
-//             _context->drawImageRect(
+//             _canvas->drawImageRect(
 //                that.asImage(),
 //                SkRect{src.left, src.top, src.right, src.bottom},
 //                SkRect{dest.left, dest.top, dest.right, dest.bottom},
