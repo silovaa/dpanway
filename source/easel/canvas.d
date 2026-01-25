@@ -5,11 +5,9 @@ import easel.affine;
 
 import easel.skia.sdk;
 
-extern(C++) context_flush();
-
 struct Surface
 {
-    private extern(C++) static SurfaceImpl make_eglsurface(int, int, int, int);
+    private extern(C++) static SurfaceImpl   (int, int, int, int);
     bool fromFramebuffer(int width, int height, int sample = 4, int stencil = 8);
 
     private extern(C++) static void destroy_surface(SurfaceImpl);
@@ -17,6 +15,9 @@ struct Surface
 
     private extern(C++) static CanvasImpl get_canvas(SurfaceImpl);
     Canvas canvas(){return Canvas(get_canvas(impl));}
+
+    extern(C++) static void flush_and_submit(SurfaceImpl);
+    void flush(){flush_and_submit(impl);}
 
     private extern(C++) static int width(SurfaceImpl);
     int width() const  {return width(impl);}

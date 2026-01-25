@@ -1,8 +1,10 @@
 module easel.skia.sdk;
 
 struct StateCanvas;
+struct SkSurface;
 
-alias CanvasImpl = StateCanvas*;
+alias CanvasImpl  = StateCanvas*;
+alias SurfaceImpl = SkSurface*;
 
 //import std.format : format;
 import std.traits : Parameters;
