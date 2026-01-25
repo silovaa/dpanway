@@ -37,7 +37,7 @@ class ContextEGL
                          int sample = 4, int stencil = 8);
    void destroy();
    void flush()
-   {dContext->flush();}
+   {dContext->flushAndSubmit();}
 
 private:
    ContextEGL():
@@ -95,11 +95,9 @@ public:
         color    _color;
     };
 
-    StateCanvas(SkCanvas* ctx);
+    StateCanvas(SkCanvas* ctx); 
 
-    SkCanvas* _canvas;
-
-private:
+    SkCanvas* _canvas; 
 
     struct state_info
     {
@@ -124,6 +122,7 @@ private:
     state_info*       current() { return _stack.top().get(); }
     state_info const* current() const { return _stack.top().get(); }
 
+private:
     state_info_stack  _stack;
     SkPaint           _clear_paint;
     affine_transform  _inv_affine;

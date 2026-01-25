@@ -5,14 +5,35 @@ import easel.affine;
 
 import easel.skia.sdk;
 
+extern(C++) context_flush();
+
+struct Surface
+{
+    private extern(C++) static SurfaceImpl make_eglsurface(int, int, int, int);
+    bool fromFramebuffer(int width, int height, int sample = 4, int stencil = 8);
+
+    private extern(C++) static void destroy_surface(SurfaceImpl);
+    void destroy(){destroy_surface(impl);}
+
+    private extern(C++) static CanvasImpl get_canvas(SurfaceImpl);
+    Canvas canvas(){return Canvas(get_canvas(impl));}
+
+    private extern(C++) static int width(SurfaceImpl);
+    int width() const  {return width(impl);}
+    private extern(C++) static int height(SurfaceImpl);
+    int height() const {return height(impl);}
+
+    private SurfaceImpl impl() 
+    {
+        assert(m_impl !is null, "Surface no configured");
+        return m_impl;
+    }
+    private SurfaceImpl m_impl;
+}
+
 struct Canvas
 {
-    private extern(C++) static CanvasImpl make_canvas(int, int, int, int);
-    void configure(int width, int height, int sample = 4, int stencil = 8) 
-    {
-        m_impl = make_canvas(width, height, sample, stencil);
-        ensure(m_impl, "Internal backend error");
-    }
+    this(CanvasImpl cpp_canvas){m_impl = cpp_canvas;}
     
     ///////////////////////////////////////////////////////////////////////////////////
     // Transforms
@@ -53,9 +74,9 @@ struct Canvas
     mixin VoidMethod!("stroke_style", float, float, float, float);
     mixin VoidMethod!("line_width", float); 
 
-    private inout CanvasImpl impl() inout
+    private CanvasImpl impl() 
     {
-        assert(m_impl !is null, "Canvas no configured");
+        assert(m_impl !is null, "Canvas is null");
         return m_impl;
     }
     private CanvasImpl m_impl;
