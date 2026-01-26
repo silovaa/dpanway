@@ -2,6 +2,7 @@ module window;
 
 import std.stdio;
 import wayland;
+import easel.canvas : EaselSurface = Surface;
 
 class Window: InputLayer
 {
@@ -62,6 +63,7 @@ writeln("Window Dtor");
     {
         if (start){
             m_context.makeCurrent();
+            m_surface.fromFramebuffer(ww, hh);
             m_context.swapBuffers();
             start = false;
         }
@@ -119,6 +121,7 @@ writeln("scale ", factor);
 
 private:
     EGLWaylandContext m_context;
+    EaselSurfase m_surface;
     uint ww, hh;
     bool start = true;
 //     EglWaylandClient m_egl;

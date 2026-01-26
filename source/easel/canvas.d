@@ -7,11 +7,19 @@ import easel.skia.sdk;
 
 struct Surface
 {
-    private extern(C++) static SurfaceImpl   (int, int, int, int);
-    bool fromFramebuffer(int width, int height, int sample = 4, int stencil = 8);
+    private extern(C++) static SurfaceImpl make_egl_current (SurfaceImpl, int, int, int, int);
+    bool fromFramebuffer(int width, int height, int sample = 4, int stencil = 8)
+    {
+        m_impl = make_egl_current(m_impl, width, height, sample, stencil);
+        return m_impl !is null;
+    }
 
     private extern(C++) static void destroy_surface(SurfaceImpl);
-    void destroy(){destroy_surface(impl);}
+    void destroy()
+    {
+        destroy_surface(impl); 
+        m_impl = null;
+    }
 
     private extern(C++) static CanvasImpl get_canvas(SurfaceImpl);
     Canvas canvas(){return Canvas(get_canvas(impl));}

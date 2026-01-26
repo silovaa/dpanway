@@ -17,125 +17,158 @@
 #include <SkFont.h>
 
 #include "gpu/ganesh/gl/GrGLAssembleInterface.h"
-
 #include "gpu/ganesh/GrDirectContext.h"
 #include "gpu/ganesh/gl/GrGLDirectContext.h"
 #include <EGL/egl.h>
-#include <GLES3/gl3.h> //for 
+#include <GLES3/gl3.h> //for glGetIntegerv
 
 #include "gpu/ganesh/gl/GrGLBackendSurface.h"
 #include "gpu/ganesh/SkSurfaceGanesh.h"
+
+class StateCanvas
+{
+public:
+
+   //  struct blur_info
+   //  {
+   //      point    _offset;
+   //      float    _blur;
+   //      color    _color;
+   //  };
+
+   StateCanvas(); 
+
+   SkCanvas* _canvas; 
+
+   struct state_info
+   {
+      state_info()
+      {
+      _fill_paint.setAntiAlias(true);
+      _fill_paint.setStyle(SkPaint::kFill_Style);
+      _stroke_paint.setAntiAlias(true);
+      _stroke_paint.setStyle(SkPaint::kStroke_Style);
+      }
+
+      SkPath         _path;
+      SkPaint        _fill_paint;
+      SkPaint        _stroke_paint;
+      class font     _font;
+      int            _text_align = 0;
+   };
+
+   using state_info_ptr = std::unique_ptr<state_info>;
+   using state_info_stack = std::stack<state_info_ptr>;
+
+   state_info*       current() { return _stack.top().get(); }
+   state_info const* current() const { return _stack.top().get(); }
+
+private:
+   state_info_stack  _stack;
+   SkPaint           _clear_paint;
+   affine_transform  _inv_affine;
+};
 
 // Функция-загрузчик для EGL
 GrGLFuncPtr egl_get_proc(void* ctx, const char name[]) {
     return eglGetProcAddress(name);
 }
 
-class ContextEGL
+sk_sp<const GrGLInterface> glInterface;
+sk_sp<GrDirectContext> dContext;
+
+GrDirectContext* context()
 {
-   SkCanvas* make_canvas(int width, int height, 
-                         int sample = 4, int stencil = 8);
-   void destroy();
-   void flush()
-   {dContext->flushAndSubmit();}
-
-private:
-   ContextEGL():
-      glInterface(GrGLMakeAssembledInterface(nullptr, egl_get_proc)),
-      dContext(GrDirectContexts::MakeGL(glInterface))
-   {}
-
-   sk_sp<const GrGLInterface> glInterface;
-   sk_sp<GrDirectContext> dContext;
-
-   sk_sp<SkSurface> surface;
-}
-
-SkCanvas* ContextEGL::make_canvas(int width, int height, int sample, int stencil)
-{
-   if (dContext){
-      GLint fboId;
-      glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fboId); // Получаем ID от EGL
-
-      GrGLFramebufferInfo fbInfo;
-      fbInfo.fFBOID = (GrGLuint)fboId;
-      fbInfo.fFormat = GL_RGBA8; // Формат должен совпадать с конфигом EGL
-
-      GrBackendRenderTarget backendRT = GrBackendRenderTargets::MakeGL(
-         width, height, 
-         sample, // sampleCount (MSAA)
-         stencil, // stencilBits
-         fbInfo
-      );
-
-      surface = SkSurfaces::WrapBackendRenderTarget(
-         ctx.dContext.get(),
-         backendRT,
-         kBottomLeft_GrSurfaceOrigin, // Стандарт для OpenGL/EGL
-         kRGBA_8888_SkColorType,      // Цветовой тип
-         nullptr,                     // ColorSpace (например, SkColorSpace::MakeSRGB())
-         nullptr                      // SurfaceProps
-      );
-
-      if (surface)
-         return surface->getCanvas();
+   if (!dContext){
+      glInterface = GrGLMakeAssembledInterface(nullptr, egl_get_proc);
+      dContext = GrDirectContexts::MakeGL(glInterface);
    }
 
+   return dContext.get();
+}
+
+struct StateSurface
+{
+   sk_sp<SkSurface> m_surface;
+   StateCanvas m_state;
+}
+
+StateSurface* make_egl_current(StateSurface *self, int width, int height, 
+                              int sample, int stencil)
+{
+   auto ctx = context();
+   if (!ctx) return nullptr;
+
+   if (!self) self = new StateSurface;
+
+   GLint fboId;
+   glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fboId); // Получаем ID от EGL
+
+   GrGLFramebufferInfo fbInfo;
+   fbInfo.fFBOID = (GrGLuint)fboId;
+   fbInfo.fFormat = GL_RGBA8; // Формат должен совпадать с конфигом EGL
+
+   GrBackendRenderTarget backendRT = GrBackendRenderTargets::MakeGL(
+      width, height, 
+      sample, // sampleCount (MSAA)
+      stencil, // stencilBits
+      fbInfo
+   );
+
+   self->m_surface = SkSurfaces::WrapBackendRenderTarget(
+      ctx,
+      backendRT,
+      kBottomLeft_GrSurfaceOrigin, // Стандарт для OpenGL/EGL
+      kRGBA_8888_SkColorType,      // Цветовой тип
+      nullptr,                     // ColorSpace (например, SkColorSpace::MakeSRGB())
+      nullptr                      // SurfaceProps
+   );
+
+   if (self->m_surface){
+      self->m_state._canvas = self->m_surface->getCanvas();
+      return self;
+   }
+
+   delete self;
    return nullptr;
 }
 
-class StateCanvas
+void destroy_surface(StateSurface *self)
 {
-public:
+   delete self;
+   dContext.reset();
+   glInterface.reset();
+}
 
-    struct blur_info
-    {
-        point    _offset;
-        float    _blur;
-        color    _color;
-    };
+StateCanvas* get_canvas(StateSurface *self)
+{
+   return &(self->m_state);
+}
 
-    StateCanvas(SkCanvas* ctx); 
+void flush_and_submit(StateSurface *self)
+{
+   context()->flushAndSubmit(self->m_surface.get());
+}
 
-    SkCanvas* _canvas; 
+int width(StateSurface *self) const
+{
+   return self->width();
+}
 
-    struct state_info
-    {
-        state_info()
-        {
-        _fill_paint.setAntiAlias(true);
-        _fill_paint.setStyle(SkPaint::kFill_Style);
-        _stroke_paint.setAntiAlias(true);
-        _stroke_paint.setStyle(SkPaint::kStroke_Style);
-        }
+int height(StateSurface *self) const
+{
+   return self->height();
+}
 
-        SkPath         _path;
-        SkPaint        _fill_paint;
-        SkPaint        _stroke_paint;
-        class font     _font;
-        int            _text_align = 0;
-    };
 
-    using state_info_ptr = std::unique_ptr<state_info>;
-    using state_info_stack = std::stack<state_info_ptr>;
-
-    state_info*       current() { return _stack.top().get(); }
-    state_info const* current() const { return _stack.top().get(); }
-
-private:
-    state_info_stack  _stack;
-    SkPaint           _clear_paint;
-    affine_transform  _inv_affine;
-};
-
-   StateCanvas::StateCanvas(SkCanvas* ctx):
-    _canvas(ctx)
-   {
-      _stack.push(std::make_unique<state_info>());
-      _clear_paint.setAntiAlias(true);
-      _clear_paint.setStyle(SkPaint::kFill_Style);
-      _clear_paint.setBlendMode(SkBlendMode::kClear);
-   }
+StateCanvas::StateCanvas():
+   _canvas(nullptr)
+{
+   _stack.push(std::make_unique<state_info>());
+   _clear_paint.setAntiAlias(true);
+   _clear_paint.setStyle(SkPaint::kFill_Style);
+   _clear_paint.setBlendMode(SkBlendMode::kClear);
+}
 
    SkPath& canvas::canvas_state::path()
    {
