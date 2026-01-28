@@ -7,6 +7,7 @@ extern (C++){
 
 alias CanvasImpl  = StateCanvas*;
 alias SurfaceImpl = StateSurface*;
+alias PathBuilderImpl = PathBuilder*;
 
 import std.traits : Parameters;
 

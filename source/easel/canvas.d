@@ -37,7 +37,7 @@ struct Surface
     {
         assert(m_impl !is null, "Surface no configured");
         return m_impl;
-    }
+    } 
     private SurfaceImpl m_impl;
 }
 
@@ -59,37 +59,29 @@ struct Canvas
 
     mixin VoidMethod!("save");
     mixin VoidMethod!("restore");
-    mixin VoidMethod!("begin_path");
-    mixin VoidMethod!("close_path");
-    mixin VoidMethod!("fill_preserve");
-    mixin VoidMethod!("stroke_preserve");
-    mixin VoidMethod!("clip");
- 
-    void fill(){fill_preserve(); begin_path();}
+    // mixin VoidMethod!("begin_path");
+    // mixin VoidMethod!("close_path");
+    //mixin VoidMethod!("fill_preserve");
+    //mixin VoidMethod!("stroke_preserve");
+    //mixin VoidMethod!("clip");
 
-    private extern(C++) static Rect clip_extent(StateCanvas *cnv);
+    private extern(C++) static void clip(StateCanvas*, SkPathBuilder*);
+    void clip(ref Path p){clip(impl, p.impl);}
+
+    private extern(C++) static Rect clip_extent(StateCanvas*); 
     Rect clip_extent(){return clip_extent(impl);}
 
-    mixin BoolMethod!("point_in_path", Point);
-    mixin VoidMethod!("move_to", Point);
-    mixin VoidMethod!("line_to", Point);
-    mixin VoidMethod!("arc_to", Point, Point, float);
-    mixin VoidMethod!("arc", Point, float, float, float, bool);
+    private extern(C++) static void fill(StateCanvas*, SkPathBuilder*);
+    void fill(ref Path p){fill(impl, p.impl);}
 
-   
-    mixin VoidMethod!("add_rect", float, float, float, float);
-    mixin VoidMethod!("add_circle", float, float, float);
-    mixin VoidMethod!("clear_rect", float, float, float, float);
-    mixin VoidMethod!("quadratic_curve_to", float, float, float, float);
-    mixin VoidMethod!("bezier_curve_to", float, float, float, float, float, float);
+    private extern(C++) static void fill_preserve(StateCanvas*, SkPathBuilder*);
+    void fill_preserve(const ref Path p){fill_preserve(impl, p.impl);}
 
-    
-    mixin VoidMethod!("fill_style", float, float, float, float);
-    mixin VoidMethod!("stroke_style", float, float, float, float);
-    mixin VoidMethod!("line_width", float); 
+    private extern(C++) static void stroke(StateCanvas*, SkPathBuilder*);
+    void stroke(ref Path p){stroke(impl, p.impl);}
 
-    //void add_rect(Rect rec) @nogc {this.add_rect(impl, rec.left, rec.top, rec.right, rec.bottom);}
-    //void fill_style(Color c) @nogc {this.fill_style(impl, c.red, c.green, c.blue, c.alpha);}
+    private extern(C++) static void stroke_preserve(StateCanvas*, SkPathBuilder*);
+    void stroke_preserve(const ref Path p){stroke_preserve(impl, p.impl);}
 
     private CanvasImpl impl() @nogc
     {

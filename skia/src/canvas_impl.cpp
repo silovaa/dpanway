@@ -8,9 +8,9 @@
 #include <SkPicture.h>
 #include <SkSurface.h>
 #include <SkCanvas.h>
-#include <SkPath.h>
-#include <SkPathBuilder.h">
-#include <include/effects/SkGradient.h>
+// #include <SkPath.h>
+// #include <SkPathBuilder.h>
+// #include <include/effects/SkGradient.h>
 #include <SkImageFilter.h>
 #include <include/effects/SkImageFilters.h>
 #include <SkTextBlob.h>
@@ -26,6 +26,8 @@
 #include "include/gpu/ganesh/gl/GrGLBackendSurface.h"
 #include "include/gpu/ganesh/GrBackendSurface.h"
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
+
+#include "path_impl.h"
 
 struct AffineTransform {
    double a, b, c, d, tx, ty;
@@ -323,33 +325,36 @@ void restore(StateCanvas *cnv)
       cnv->_stack.pop();
 }
 
-void begin_path(StateCanvas *cnv){cnv->current()->_path = {};}
+void begin_path(StateCanvas *cnv){cnv->current()->_path.reset();}
 void close_path(StateCanvas *cnv){cnv->current()->_path.close();}
 
-void fill_preserve(StateCanvas *cnv)
+void fill(StateCanvas *cnv, SkPathBuilder *pb)
 {
-   cnv->_canvas->drawPath(cnv->current()->_path.detach(), 
-                           cnv->current()->_fill_paint);
+   cnv->_canvas->drawPath(pb->detach(), cnv->current()->_fill_paint);
 }
 
-void stroke_preserve(StateCanvas *cnv)
+void stroke(StateCanvas *cnv, SkPathBuilder *pb)
 {
-   cnv->_canvas->drawPath(cnv->current()->_path.detach(), 
-                           cnv->current()->_stroke_paint);
+   cnv->_canvas->drawPath(pb->detach(), cnv->current()->_stroke_paint);
 }
 
-void clip(StateCanvas *cnv)
+void fill_preserve(StateCanvas *cnv, const SkPathBuilder *pb)
 {
-   cnv->_canvas->clipPath(cnv->current()->_path.detach(), true);
-   cnv->current()->_path.reset();
+   cnv->_canvas->drawPath(pb->snapshot(), cnv->current()->_fill_paint);
 }
 
-// void canvas::clip(class path const& p)
-// {
-//    _canvas->clipPath(*p.impl(), true);
-// }
-struct Rect  {float l, t, r, b};
-struct Point {float x, y};
+void stroke_preserve(StateCanvas *cnv, const SkPathBuilder *pb)
+{
+   cnv->_canvas->drawPath(pb->snapshot(), cnv->current()->_stroke_paint);
+}
+
+void clip(StateCanvas *cnv, SkPathBuilder *pb)
+{
+   cnv->_canvas->clipPath(pb->detach(), true);
+}
+
+struct Rect  {float l, t, r, b;};
+//struct Point {float x, y;};
 
 Rect clip_extent(StateCanvas *cnv)
 {
@@ -358,9 +363,9 @@ Rect clip_extent(StateCanvas *cnv)
    return {r.left(), r.top(), r.right(), r.bottom()};
 }
 
-bool point_in_path(StateCanvas *cnv, Point p)
+bool point_in_path(StateCanvas *cnv, float x, float y)
 {
-   return cnv->current()->_path.contains(p.x, p.y);
+   return cnv->current()->_path.contains({x, y});
 }
 
 void move_to(StateCanvas *cnv, Point p)
