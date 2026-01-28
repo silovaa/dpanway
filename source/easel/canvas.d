@@ -2,6 +2,7 @@ module easel.canvas;
 
 import easel.rect;
 import easel.affine;
+import easel.color;
 
 import easel.skia.sdk;
 
@@ -28,11 +29,11 @@ struct Surface
     void flush(){flush_and_submit(impl);}
 
     private extern(C++) static int width(SurfaceImpl);
-    int width() const  {return width(impl);}
+    int width()  {return width(impl);}
     private extern(C++) static int height(SurfaceImpl);
-    int height() const {return height(impl);}
+    int height() {return height(impl);}
 
-    private SurfaceImpl impl() 
+    private SurfaceImpl impl() @nogc
     {
         assert(m_impl !is null, "Surface no configured");
         return m_impl;
@@ -63,6 +64,8 @@ struct Canvas
     mixin VoidMethod!("fill_preserve");
     mixin VoidMethod!("stroke_preserve");
     mixin VoidMethod!("clip");
+ 
+    void fill(){fill_preserve(); begin_path();}
 
     private extern(C++) static Rect clip_extent(StateCanvas *cnv);
     Rect clip_extent(){return clip_extent(impl);}
@@ -73,17 +76,22 @@ struct Canvas
     mixin VoidMethod!("arc_to", Point, Point, float);
     mixin VoidMethod!("arc", Point, float, float, float, bool);
 
+   
     mixin VoidMethod!("add_rect", float, float, float, float);
     mixin VoidMethod!("add_circle", float, float, float);
     mixin VoidMethod!("clear_rect", float, float, float, float);
     mixin VoidMethod!("quadratic_curve_to", float, float, float, float);
     mixin VoidMethod!("bezier_curve_to", float, float, float, float, float, float);
 
+    
     mixin VoidMethod!("fill_style", float, float, float, float);
     mixin VoidMethod!("stroke_style", float, float, float, float);
     mixin VoidMethod!("line_width", float); 
 
-    private CanvasImpl impl() 
+    //void add_rect(Rect rec) @nogc {this.add_rect(impl, rec.left, rec.top, rec.right, rec.bottom);}
+    //void fill_style(Color c) @nogc {this.fill_style(impl, c.red, c.green, c.blue, c.alpha);}
+
+    private CanvasImpl impl() @nogc
     {
         assert(m_impl !is null, "Canvas is null");
         return m_impl;

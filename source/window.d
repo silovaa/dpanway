@@ -2,7 +2,9 @@ module window;
 
 import std.stdio;
 import wayland;
-import easel.canvas : EaselSurface = Surface;
+
+import easel.canvas : EaselSurface = Surface, Canvas;
+import easel.color;
 
 class Window: InputLayer
 {
@@ -64,6 +66,8 @@ writeln("Window Dtor");
         if (start){
             m_context.makeCurrent();
             m_surface.fromFramebuffer(ww, hh);
+            draw(m_surface.canvas);
+            m_surface.flush();
             m_context.swapBuffers();
             start = false;
         }
@@ -96,20 +100,13 @@ writeln("scale ", factor);
                 uint         key_mod){writeln("point_click ", button);}
     override void scroll(int time, int axis, double value){}
 
-    // override void draw() nothrow
-    // {
-    //     m_egl.makeCurrent();
-        
-    //     glViewport(0, 0, m_width, m_height);
-
-    //     try
-    //         writeln("enter draw");
-    //     catch(Exception e) return;
-    //     glClearColor(0.18, 0.21, 0.81, 1);
-	//     glClear(GL_COLOR_BUFFER_BIT);
-
-    //     m_egl.swapBuffers();
-    // }
+    void draw(Canvas cnv) 
+    {
+        auto bkd = rgb(44, 42, 45);
+        cnv.add_rect(0, 0, cast(float)ww, cast(float)hh);
+        cnv.fill_style(bkd.red, bkd.green, bkd.blue, bkd.alpha);
+        cnv.fill();
+    }
   
 	// override void destroy() nothrow
     // {
@@ -121,7 +118,7 @@ writeln("scale ", factor);
 
 private:
     EGLWaylandContext m_context;
-    EaselSurfase m_surface;
+    EaselSurface m_surface;
     uint ww, hh;
     bool start = true;
 //     EglWaylandClient m_egl;

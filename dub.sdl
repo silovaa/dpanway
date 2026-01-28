@@ -4,9 +4,18 @@ description "Главное приложение"
 
 targetPath "/tmp/dub"  # все бинарники сюда
 
-//subPackage "./wayland"
 dependency "wayland" path="./wayland"
 subConfiguration "wayland" "egl"
 
-#subPackage "./egl"
-#dependency ":egl" version="*"
+preBuildCommands "clang++ -c skia/src/canvas_impl.cpp -o canvas_impl.o -std=c++20 -fPIC -I./skia -I./skia/include/core"
+sourceFiles "canvas_impl.o"
+includePaths "skia/include" "skia/include/core"
+//cxxflags "-std=c++20" "-I./skia/include" "-I./skia/include/core"
+
+// Линковка (путь к библиотеке и сама библиотека)
+lflags "-L$PACKAGE_DIR/skia/lib"
+libs "skia" "stdc++"
+
+libs "fontconfig" "freetype" "png" "jpeg" "webp" "webpdemux" "z"
+pkgConfigLibs "fontconfig" "freetype2" "libpng" "libjpeg" "libwebp" "libwebpdemux" "zlib"
+

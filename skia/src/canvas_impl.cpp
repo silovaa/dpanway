@@ -9,6 +9,7 @@
 #include <SkSurface.h>
 #include <SkCanvas.h>
 #include <SkPath.h>
+#include <SkPathBuilder.h">
 #include <include/effects/SkGradient.h>
 #include <SkImageFilter.h>
 #include <include/effects/SkImageFilters.h>
@@ -55,7 +56,7 @@ public:
       _stroke_paint.setStyle(SkPaint::kStroke_Style);
       }
 
-      SkPath         _path;
+      SkPathBuilder        _path;
       SkPaint        _fill_paint;
       SkPaint        _stroke_paint;
       //class font     _font;
@@ -327,19 +328,19 @@ void close_path(StateCanvas *cnv){cnv->current()->_path.close();}
 
 void fill_preserve(StateCanvas *cnv)
 {
-   cnv->_canvas->drawPath(cnv->current()->_path, 
+   cnv->_canvas->drawPath(cnv->current()->_path.detach(), 
                            cnv->current()->_fill_paint);
 }
 
 void stroke_preserve(StateCanvas *cnv)
 {
-   cnv->_canvas->drawPath(cnv->current()->_path, 
+   cnv->_canvas->drawPath(cnv->current()->_path.detach(), 
                            cnv->current()->_stroke_paint);
 }
 
 void clip(StateCanvas *cnv)
 {
-   cnv->_canvas->clipPath(cnv->current()->_path, true);
+   cnv->_canvas->clipPath(cnv->current()->_path.detach(), true);
    cnv->current()->_path.reset();
 }
 
