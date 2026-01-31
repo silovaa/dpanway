@@ -1,13 +1,42 @@
 module easel.skia.sdk;
 
-extern (C++){
-    struct StateCanvas;
-    struct StateSurface;
-}
+struct StateCanvas;
+struct StateSurface;
+struct PathBuilder;
+
+struct SkPath
+{
+    // Конструктор копирования (современный D)
+    this(ref return scope inout typeof(this) src) inout {
+        sk_path_copy(cast(SkPath*)&this, cast(const SkPath*)&src);
+    }
+
+    ~this() {
+        if (data) {
+            sk_path_destruct(&this);
+        }
+    }
+
+    bool includes(float x, float y) const;
+
+private:
+    void* data;
+    ubyte fFillType;
+    bool  fIsVolatile;
+
+    extern(C++) @nogc nothrow {
+        static void sk_path_copy(SkPath* dst, const(SkPath)* src);
+        static void sk_path_destruct(SkPath* path);
+    }
+}   
+
+// Проверка на соответствие ABI (64-бит)
+static assert(SkPath.sizeof == 16); 
 
 alias CanvasImpl  = StateCanvas*;
 alias SurfaceImpl = StateSurface*;
 alias PathBuilderImpl = PathBuilder*;
+alias Path = SkPath;
 
 import std.traits : Parameters;
 

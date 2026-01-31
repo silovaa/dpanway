@@ -6,6 +6,11 @@ import easel.color;
 
 import easel.skia.sdk;
 
+struct CanvasPtr
+{
+    
+}
+
 struct Surface
 {
     private extern(C++) static SurfaceImpl make_egl_current (SurfaceImpl, int, int, int, int);
@@ -43,7 +48,7 @@ struct Surface
 
 struct Canvas
 {
-    this(CanvasImpl cpp_canvas){m_impl = cpp_canvas;}
+    alias m_builder this;
     
     ///////////////////////////////////////////////////////////////////////////////////
     // Transforms
@@ -59,34 +64,31 @@ struct Canvas
 
     mixin VoidMethod!("save");
     mixin VoidMethod!("restore");
-    // mixin VoidMethod!("begin_path");
-    // mixin VoidMethod!("close_path");
-    //mixin VoidMethod!("fill_preserve");
-    //mixin VoidMethod!("stroke_preserve");
-    //mixin VoidMethod!("clip");
 
-    private extern(C++) static void clip(StateCanvas*, SkPathBuilder*);
-    void clip(ref Path p){clip(impl, p.impl);}
+    void beginPath(){m_builder.reset();}
 
-    private extern(C++) static Rect clip_extent(StateCanvas*); 
+    private extern(C++) static void cpp_clip(StateCanvas*, Path*);
+    void clip(ref Path p){cpp_clip(impl, &p);}
+    void clip(){clip(m_builder.path);}
+
+    private extern(C++) static Rect cpp_clip_extent(StateCanvas*); 
     Rect clip_extent(){return clip_extent(impl);}
 
-    private extern(C++) static void fill(StateCanvas*, SkPathBuilder*);
-    void fill(ref Path p){fill(impl, p.impl);}
+    private extern(C++) static void cpp_fill(StateCanvas*, Path*);
+    void fill(ref Path p){fill(impl, &p);}
+    void fill(){fill(m_builder.path);}
 
-    private extern(C++) static void fill_preserve(StateCanvas*, SkPathBuilder*);
-    void fill_preserve(const ref Path p){fill_preserve(impl, p.impl);}
+    private extern(C++) static void cpp_stroke(StateCanvas*, Path*);
+    void stroke(ref Path p){stroke(impl, &p);}
+    void stroke(){stroke(m_builder.path);}
 
-    private extern(C++) static void stroke(StateCanvas*, SkPathBuilder*);
-    void stroke(ref Path p){stroke(impl, p.impl);}
-
-    private extern(C++) static void stroke_preserve(StateCanvas*, SkPathBuilder*);
-    void stroke_preserve(const ref Path p){stroke_preserve(impl, p.impl);}
-
-    private CanvasImpl impl() @nogc
+private: 
+    CanvasImpl impl() @nogc
     {
         assert(m_impl !is null, "Canvas is null");
         return m_impl;
     }
-    private CanvasImpl m_impl;
+
+    CanvasImpl m_impl;
+    PathBuilder m_builder;
 }

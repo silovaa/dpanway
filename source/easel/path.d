@@ -3,29 +3,33 @@ module easel.skia.path;
 import easel.rect;
 import easel.circle;
 
-struct Path
+enum FillRule: ubyte
 {
-    enum FillRule: ubyte
-    {
-        kWinding        = 0,
-        kOdd_even       = 1,
-        kInverseWinding = 2,
-        kInverseEvenOdd = 3,
+    kWinding,
+    kOdd_even,
+    kInverseWinding,
+    kInverseEvenOdd,
 
-        kDefault = kWinding
-    }
+    kDefault = kWinding
+}
 
-    this(FillRule rule){m_path = make_builder(rule);}
-    ~this(){delete_builder(m_path);}
+struct PathBuilder
+{
+    this(FillRule rule){m_path_builder = cpp_make_builder(rule);}
+    this(PathBuilderImpl impl){m_path_builder = impl;}
+    
+    ~this(){cpp_delete_builder(m_path_builder);}
 
     bool    is_empty() const;
-    bool    includes(Point p) const;
-    bool    includes(float x, float y) const;
+
+    bool    includes(Point p)
+    {return path.includes(p.x, p.y);}
+    
     Rect    bounds() const;
 
     void    close();
 
-    mixin BoolMethod!("point_in_path", float, float); 
+    //mixin BoolMethod!("point_in_path", float, float); 
     mixin VoidMethod!("move_to", float, float);
     mixin VoidMethod!("line_to", float, float);
     mixin VoidMethod!("arc_to", float, float, float, float, float);
@@ -86,8 +90,21 @@ struct Path
 
     void    fill_rule(FillRule rule);
 
-    inout(PathBuilder) impl() inout @nogc {return m_path;}
+    inout(PathBuilder) impl() inout nothrow @nogc {return m_path;}
+
+    ref Path path() nothrow @nogc
+    {
+        if (isDirty){ 
+            m_path = cpp_builder_snapshot(impl);
+            isDirty = false;
+        }
+
+        return m_path;
+    }
 
 private:
-    PathBuilder m_path = make_builder(FillRule.kDefault);
+    PathBuilder m_path_builder = 
+        make_builder(FillRule.kDefault);
+    Path m_path;
+    bool isDirty = false;
 }

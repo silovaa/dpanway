@@ -4,15 +4,28 @@
 #include <SkPathBuilder.h>
 #include <include/effects/SkGradient.h>
 
-using PathBuilder = SkPathBuilder;
-
-PathBuilder* make_builder(uint8_t fill_rule)
+extern "C++"{
+void sk_path_copy(SkPath* dst, const SkPath* src) 
 {
-   auto rule = static_cast<SkPathFillType>(fill_rule);
-   return new PathBuilder(rule);
+   // Используем placement new, чтобы вызвать конструктор копирования C++
+   // прямо в памяти, выделенной на стороне D.
+   new (dst) SkPath(*src);
 }
 
-void destroy_builder(PathBuilder* ptr){delete ptr;}
+void sk_path_destruct(SkPath* path) 
+{
+   path->~SkPath();
+}
 
-SkPath detach(SkPathBuilder *pb){return pb->detach();}
-SkPath snapshot(const SkPathBuilder *pb) const {return pb->snapshot();}
+SkPathBuilder* sk_make_builder(uint8_t fill_rule)
+{
+   auto rule = static_cast<SkPathFillType>(fill_rule);
+   return new SkPathBuilder(rule);
+}
+
+void sk_destroy_builder(SkPathBuilder* ptr){delete ptr;}
+
+SkPath sk_builder_detach(SkPathBuilder *pb){return pb->detach();}
+SkPath sk_builder_snapshot(const SkPathBuilder *pb) const {return pb->snapshot();}
+
+}
