@@ -95,38 +95,11 @@ GrDirectContext* context()
    return dContext.get();
 }
 
-struct Canvas
-{
-   StateCanvas*     state;
-   SkPathBuilder*   path_builder;
-};
-
 struct StateSurface
 {
    sk_sp<SkSurface> m_surface;
    StateCanvas m_state;
    SkPathBuilder   m_path_builder;
-
-   Canvas getCanvas() const
-   {
-      return {&m_state, &m_builder};
-   }
-
-   void flush_and_submit()
-   {
-      context()->flushAndSubmit(m_surface.get());
-   }
-
-   int width() const 
-   {
-      return m_surface->width();
-   }
-
-   int height() const 
-   {
-      return m_surface->height();
-   }
-
 };
 
 StateSurface* make_egl_current(StateSurface *self, int width, int height, 
@@ -175,6 +148,33 @@ void destroy_surface(StateSurface *self)
    dContext.reset();
    glInterface.reset();
 }
+
+struct Canvas
+{
+   StateCanvas*     state;
+   SkPathBuilder*   path_builder;
+}
+
+Canvas get_canvas(StateSurface *self)
+{
+   return {&(self->m_state), &(self->m_builder)};
+}
+
+void flush_and_submit(StateSurface *self)
+{
+   context()->flushAndSubmit(self->m_surface.get());
+}
+
+int width(StateSurface *self) 
+{
+   return self->m_surface->width();
+}
+
+int height(StateSurface *self) 
+{
+   return self->m_surface->height();
+}
+
 
 StateCanvas::StateCanvas():
    _canvas(nullptr)

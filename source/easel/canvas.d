@@ -6,9 +6,10 @@ import easel.color;
 
 import easel.skia.sdk;
 
-struct CanvasPtr
+extern(C++) struct CanvasPtr
 {
-    
+    CanvasImpl      state;
+    PathBuilderImpl path_builder;
 }
 
 struct Surface
@@ -27,8 +28,12 @@ struct Surface
         m_impl = null;
     }
 
-    private extern(C++) static CanvasImpl get_canvas(SurfaceImpl);
-    Canvas canvas(){return Canvas(get_canvas(impl));}
+    private extern(C++) static CanvasPtr get_canvas(SurfaceImpl);
+    Canvas canvas()
+    {
+        auto ptr = get_canvas(impl);
+        return Canvas(ptr.state, ptr.path_builder);
+    }
 
     extern(C++) static void flush_and_submit(SurfaceImpl);
     void flush(){flush_and_submit(impl);}
@@ -48,6 +53,12 @@ struct Surface
 
 struct Canvas
 {
+    this(CanvasImpl state, PathBuilderImpl path_builder)
+    {
+        m_impl = state;
+        m_builder = PathBuilderInternal(path_builder);
+    }
+
     alias m_builder this;
     
     ///////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +75,10 @@ struct Canvas
 
     mixin VoidMethod!("save");
     mixin VoidMethod!("restore");
+
+    mixin Setter!("fill_style", Color);
+    mixin Setter!("stroke_style", Color);
+    mixin Setter!("line_width", float); 
 
     void beginPath(){m_builder.reset();}
 
@@ -89,6 +104,6 @@ private:
         return m_impl;
     }
 
-    CanvasImpl m_impl;
-    PathBuilder m_builder;
+    CanvasImpl  m_impl;
+    PathBuilderInternal m_builder;
 }

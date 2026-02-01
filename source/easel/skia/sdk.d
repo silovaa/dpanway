@@ -7,17 +7,18 @@ struct PathBuilder;
 struct SkPath
 {
     // Конструктор копирования (современный D)
-    this(ref return scope inout typeof(this) src) inout {
+    this(ref return scope inout typeof(this) src) inout 
+    {
         sk_path_copy(cast(SkPath*)&this, cast(const SkPath*)&src);
     }
 
-    ~this() {
-        if (data) {
-            sk_path_destruct(&this);
-        }
+    ~this() 
+    {
+        sk_path_destruct(&this);
     }
 
     bool includes(float x, float y) const;
+    void reset();
 
 private:
     void* data;

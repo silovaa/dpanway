@@ -15,19 +15,34 @@ enum FillRule: ubyte
 
 struct PathBuilder
 {
-    this(FillRule rule){m_path_builder = cpp_make_builder(rule);}
-    this(PathBuilderImpl impl){m_path_builder = impl;}
-    
-    ~this(){cpp_delete_builder(m_path_builder);}
+    this(FillRule rule)
+    {
+        self = PathBuilderInternal(cpp_make_builder(rule));
+    }
 
-    bool    is_empty() const;
+    ~this(){self.destroy();}
+
+    alias self this;
+    @disable this(this);
+
+    private PathBuilderInternal self = 
+        PathBuilderInternal(cpp_make_builder(FillRule.kDefault));
+}
+
+package struct PathBuilderInternal
+{
+    this(PathBuilderImpl impl){m_path_builder = impl;}
+
+    void destroy(){cpp_delete_builder(m_path_builder);}
+
+    mixin BoolMethod!("is_empty");
 
     bool    includes(Point p)
     {return path.includes(p.x, p.y);}
     
     Rect    bounds() const;
 
-    void    close();
+    mixin VoidMethod!("close");
 
     //mixin BoolMethod!("point_in_path", float, float); 
     mixin VoidMethod!("move_to", float, float);
@@ -40,10 +55,6 @@ struct PathBuilder
     mixin VoidMethod!("clear_rect", float, float, float, float);
     mixin VoidMethod!("quadratic_curve_to", float, float, float, float);
     mixin VoidMethod!("bezier_curve_to", float, float, float, float, float, float);
-
-    mixin VoidMethod!("fill_style", float, float, float, float);
-    mixin VoidMethod!("stroke_style", float, float, float, float);
-    mixin VoidMethod!("line_width", float); 
 
     void    add_rect(ref const Rect r);
     void    add_round_rect(ref const Rect r, float radius);
@@ -90,8 +101,7 @@ struct PathBuilder
 
     void    fill_rule(FillRule rule);
 
-    inout(PathBuilder) impl() inout nothrow @nogc {return m_path;}
-
+    private extern(C++) static Path cpp_builder_snapshot(PathBuilderImpl);
     ref Path path() nothrow @nogc
     {
         if (isDirty){ 
@@ -102,9 +112,26 @@ struct PathBuilder
         return m_path;
     }
 
+    private extern(C++) static Path cpp_builder_detach(PathBuilderImpl);
+    Path pathDetach() nothrow @nogc
+    {
+        isDirty = true;
+
+        return cpp_builder_detach(impl);
+    }
+
+    private extern(C++) static void cpp_builder_reset(PathBuilderImpl);
+    void reset() @nogc
+    {
+        cpp_builder_reset(impl);
+        m_path.reset();
+        isDirty = false;
+    }
+
 private:
-    PathBuilder m_path_builder = 
-        make_builder(FillRule.kDefault);
+    PathBuilderImpl m_path_builder;
     Path m_path;
     bool isDirty = false;
+
+    inout(PathBuilder) impl() inout nothrow @nogc {return m_path;}
 }
