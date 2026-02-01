@@ -20,7 +20,7 @@ struct PathBuilder
         self = PathBuilderInternal(cpp_make_builder(rule));
     }
 
-    ~this(){self.destroy();}
+    ~this(){self.destruct();}
 
     alias self this;
     @disable this(this);
@@ -33,7 +33,7 @@ package struct PathBuilderInternal
 {
     this(PathBuilderImpl impl){m_path_builder = impl;}
 
-    void destroy(){cpp_delete_builder(m_path_builder);}
+    void destruct(){cpp_delete_builder(m_path_builder);}
 
     mixin BoolMethod!("is_empty");
 

@@ -271,12 +271,10 @@ struct GlobalIterator
 
     Global[] m_protocols;
     uint index;
-import std.stdio;
+
     Global find(const(char)* str) nothrow @nogc
     {
         for(size_t i = index; i < m_protocols.length; ++i) {
-        import std.string : fromStringz;
-            
         
             if (strcmp(str, m_protocols[i].name()) == 0){
                 auto res = m_protocols[i];

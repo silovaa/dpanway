@@ -17,15 +17,16 @@ void sk_path_destruct(SkPath* path)
    path->~SkPath();
 }
 
-SkPathBuilder* sk_make_builder(uint8_t fill_rule)
+SkPathBuilder* cpp_make_builder(uint8_t fill_rule)
 {
    auto rule = static_cast<SkPathFillType>(fill_rule);
    return new SkPathBuilder(rule);
 }
 
-void sk_destroy_builder(SkPathBuilder* ptr){delete ptr;}
+void cpp_destroy_builder(SkPathBuilder* ptr){delete ptr;}
 
-SkPath sk_builder_detach(SkPathBuilder *pb){return pb->detach();}
-SkPath sk_builder_snapshot(const SkPathBuilder *pb) const {return pb->snapshot();}
+SkPath cpp_builder_detach(SkPathBuilder *pb){return pb->detach();}
+SkPath cpp_builder_snapshot(const SkPathBuilder *pb) const {return pb->snapshot();}
+void cpp_builder_reset(SkPathBuilder *pb){pb.reset();}
 
 }

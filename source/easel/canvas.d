@@ -60,25 +60,6 @@ struct Canvas
     }
 
     alias m_builder this;
-    
-    ///////////////////////////////////////////////////////////////////////////////////
-    // Transforms
-    mixin VoidMethod!("translate", float , float); 
-    mixin VoidMethod!("rotate", float); 
-    mixin VoidMethod!("scale", float , float);
-    mixin VoidMethod!("skew", double, double);
-
-    private extern(C++) static void transform(StateCanvas *cnv, ref AffineTransform);
-    private extern(C++) static void transform(StateCanvas *cnv, const ref AffineTransform);
-    void transform(ref AffineTransform m){transform(impl, m);}
-    void transform(const ref AffineTransform m){transform(impl, m);}
-
-    mixin VoidMethod!("save");
-    mixin VoidMethod!("restore");
-
-    mixin Setter!("fill_style", Color);
-    mixin Setter!("stroke_style", Color);
-    mixin Setter!("line_width", float); 
 
     void beginPath(){m_builder.reset();}
 
@@ -97,13 +78,70 @@ struct Canvas
     void stroke(ref Path p){stroke(impl, &p);}
     void stroke(){stroke(m_builder.path);}
 
-private: 
-    CanvasImpl impl() @nogc
-    {
-        assert(m_impl !is null, "Canvas is null");
-        return m_impl;
+
+    mixin CanvasApi!CanvasImpl;
+
+    private PathBuilderInternal m_builder;
+}
+
+enum Cap: int {
+    kButt,                  //!< no stroke extension
+    kRound,                 //!< adds circle
+    kSquare,                //!< adds square
+    kLast    = kSquare,     //!< largest Cap value
+    kDefault = kButt        //!< equivalent to kButt_Cap
+}
+
+enum Join : int {
+    kMiter,                 //!< extends to miter limit
+    kRound,                 //!< adds circle
+    kBevel,                 //!< connects outside edges
+    kLast    = kBevel,      //!< equivalent to the largest value for Join
+    kDefault = kMiter       //!< equivalent to kMiter_Join
+}
+
+private:
+
+mixin template CanvasApi(ImplType) {
+    mixin ImplAccessor!ImplType;
+    // Хелпер для void методов (для краткости)
+    mixin template Void(string name, Args...) {
+        mixin ApiMethod!(ImplType, void, name, Args);
     }
 
-    CanvasImpl  m_impl;
-    PathBuilderInternal m_builder;
+    // Хелпер для Setter (@property)
+    mixin template Set(string name, T) {
+        mixin ApiSetter!(ImplType, name, T);
+    }
+
+    mixin template Prop(string name, T) {
+        mixin ApiProperty!(ImplType, name, T);
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////
+    // Transforms
+
+    mixin Void!("translate", float , float); 
+    mixin Void!("rotate", float); 
+    mixin Void!("scale", float , float);
+    mixin Void!("skew", double, double);
+
+    mixin Prop!("transform", AffineTransform);
+
+    ///////////////////////////////////////////////////////////////////////////////////
+    // State
+
+    mixin Void!("save");
+    mixin Void!("restore");
+
+    ///////////////////////////////////////////////////////////////////////////////////
+    // Styles
+
+    mixin Set!("fill_style", Color);
+    mixin Set!("fill_style", Gradient);
+    mixin Set!("stroke_style", Color);
+    mixin Set!("stroke_style", Gradient);
+    mixin Set!("line_width", float);
+
+    mixin Set
 }
