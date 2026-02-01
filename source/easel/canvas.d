@@ -100,6 +100,95 @@ enum Join : int {
     kDefault = kMiter       //!< equivalent to kMiter_Join
 }
 
+enum Composite_op
+{
+    source_over,
+    source_atop,
+    source_in,
+    source_out,
+
+    destination_over,
+    destination_atop,
+    destination_in,
+    destination_out,
+
+    lighter,
+    darker,
+    copy,
+    xor_,
+
+    difference,
+    exclusion,
+    multiply,
+    screen,
+
+    color_dodge,
+    color_burn,
+    soft_light,
+    hard_light,
+
+    hue,
+    saturation,
+    color_op,
+    luminosity
+}
+
+struct ColorStop
+{
+    float   offset;
+    Color   color;
+}
+
+struct Gradient
+{
+    float[] offset;
+    Color[] color;
+}
+
+      struct linear_gradient : gradient
+      {
+         linear_gradient(float startx, float starty, float endx, float endy)
+          : start{startx, starty}
+          , end{endx, endy}
+         {}
+
+         linear_gradient(point start, point end)
+          : start{start}
+          , end{end}
+         {}
+
+         point start = {};
+         point end = {};
+      };
+
+      struct radial_gradient : gradient
+      {
+         radial_gradient(
+            float c1x, float c1y, float c1r,
+            float c2x, float c2y, float c2r
+         )
+          : c1{c1x, c1y}
+          , c1_radius{c1r}
+          , c2{c2x, c2y}
+          , c2_radius{c2r}
+         {}
+
+         radial_gradient(
+            point c1, float c1r,
+            point c2, float c2r
+         )
+          : c1{c1}
+          , c1_radius{c1r}
+          , c2{c2}
+          , c2_radius{c2r}
+         {}
+
+         point c1 = {};
+         float c1_radius = {};
+         point c2 = c1;
+         float c2_radius = c1_radius;
+      };
+
 private:
 
 mixin template CanvasApi(ImplType) {
@@ -141,7 +230,10 @@ mixin template CanvasApi(ImplType) {
     mixin Set!("fill_style", Gradient);
     mixin Set!("stroke_style", Color);
     mixin Set!("stroke_style", Gradient);
-    mixin Set!("line_width", float);
 
-    mixin Set
+    mixin Set!("line_width", float);
+    mixin Set!("line_cap", Cap);
+    mixin Set!("line_join", Join);
+    mixin Set!("miter_limit", float);
+    mixin Set!("composite_op", Composite_op);
 }

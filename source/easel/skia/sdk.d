@@ -140,20 +140,37 @@ mixin template ApiMethod(ImplType, RetType, string name, Args...) {
 
 mixin template ApiSetter(ImplType, string name, T) {
     mixin(() {
-        enum isRef = isAggregateType!T;
-        string attr = isRef ? "const ref " : "";
-        string typeName = is(T == enum) ? "int" : T.stringof;
+        import std.traits : isAggregateType;
+        import std.format : format;
+
+        enum isEnum = is(T == enum);
+        enum isStruct = isAggregateType!T;
+
+        string cppType = isEnum ? "int" : T.stringof;
+        
+        // В D 'const ref' соответствует 'const T&' в C++
+        string dAttr = isStruct ? "const ref " : "";
+        
+        string callValue = isEnum ? format("cast(%s) value", cppType) : "value";
 
         // Мы используем T.stringof для типа параметра
         return format(q{
             // Внешняя C++ функция
-            private extern(C++) static void cpp_set_%1$s(%3$s h, %4$s%5$s value) @nogc;
+            private extern(C++) static void cpp_set_%1$s(%3$s h, %4$s%2$s value) @nogc;
 
             // D-свойство (Setter)
-            @property void %1$s(%4$s%2$s value) @nogc {
-                cpp_set_%1$s(this.impl, cast(%5$s) value);
+            @property void %1$s(%6$s%5$s value) @nogc {
+                cpp_set_%1$s(this.impl, %7$s);
             }
-        }, name, T.stringof, ImplType.stringof, attr, typeName);
+        },
+        name,               // %1
+        cppType,            // %2
+        ImplType.stringof,  // %3
+        dAttr,              // %4 - здесь будет "const ref " для структур
+        T.stringof,         // %5
+        isStruct ? "const ref " : "", // %6
+        callValue           // %7
+        );
     }());
 }
 
