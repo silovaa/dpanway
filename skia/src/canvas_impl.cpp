@@ -185,62 +185,6 @@ StateCanvas::StateCanvas():
    _clear_paint.setBlendMode(SkBlendMode::kClear);
 }
 
-   // SkPath& canvas::canvas_state::path()
-   // {
-   //    return current()->_path;
-   // }
-
-   // SkPaint& canvas::canvas_state::fill_paint()
-   // {
-   //    return current()->_fill_paint;
-   // }
-
-   // SkPaint& canvas::canvas_state::stroke_paint()
-   // {
-   //    return current()->_stroke_paint;
-   // }
-
-   // class font& canvas::canvas_state::font()
-   // {
-   //    return current()->_font;
-   // }
-
-   // int& canvas::canvas_state::text_align()
-   // {
-   //    return current()->_text_align;
-   // }
-
-   // SkPaint& canvas::canvas_state::clear_paint()
-   // {
-   //    return _clear_paint;
-   // }
-
-   // void canvas::canvas_state::save()
-   // {
-   //    _stack.push(std::make_unique<state_info>(*current()));
-   // }
-
-   // void canvas::canvas_state::restore()
-   // {
-   //    if (_stack.size())
-   //       _stack.pop();
-   // }
-
-   // SkPaint& canvas::canvas_state::get_fill_paint(canvas const& cnv)
-   // {
-   //    return cnv._state->fill_paint();
-   // }
-
-   // affine_transform canvas::canvas_state::get_inv_affine() const
-   // {
-   //    return _inv_affine;
-   // }
-
-   // void canvas::canvas_state::set_inv_affine(affine_transform xf)
-   // {
-   //    _inv_affine = xf;
-   // }
-
 //    canvas::canvas(canvas_impl* context_)
 //     : _canvas{context_}
 //     , _state{std::make_unique<canvas_state>()}
@@ -252,11 +196,13 @@ StateCanvas::StateCanvas():
 //    {
 //    }
 
+///////////////////////////////////////////////////////////////////////////////////
+// Transforms
 
-void translate(StateCanvas *cnv, float x, float y){ cnv->_canvas->translate(x, y);}
-void rotate(StateCanvas *cnv, float rad){cnv->_canvas->rotate(rad * (180.0/std::numbers::pi));}
-void scale(StateCanvas *cnv, float x, float y){ cnv->_canvas->scale(x, y);}
-void skew(StateCanvas *cnv, double sx, double sy){cnv->_canvas->skew(sx, sy);}
+void cpp_translate(StateCanvas *cnv, float x, float y){ cnv->_canvas->translate(x, y);}
+void cpp_rotate(StateCanvas *cnv, float rad){cnv->_canvas->rotate(rad * (180.0/std::numbers::pi));}
+void cpp_scale(StateCanvas *cnv, float x, float y){ cnv->_canvas->scale(x, y);}
+void cpp_skew(StateCanvas *cnv, double sx, double sy){cnv->_canvas->skew(sx, sy);}
 
 // point canvas::device_to_user(point p)
 // {
@@ -319,20 +265,22 @@ void transform(StateCanvas *cnv, AffineTransform const& mat)
 //    _canvas->setMatrix(mat);
 // }
 
-void save(StateCanvas *cnv)
+///////////////////////////////////////////////////////////////////////////////////
+// State
+
+void cpp_save(StateCanvas *cnv)
 {
    cnv->_canvas->save();
    cnv->_stack.push(std::make_unique<StateCanvas::state_info>(*(cnv->current())));
 }
 
-void restore(StateCanvas *cnv)
+void cpp_restore(StateCanvas *cnv)
 {
    cnv->_canvas->restore();
    if (cnv->_stack.size())
       cnv->_stack.pop();
 }
 
-void begin_path(StateCanvas *cnv){cnv->current()->_path.reset();}
 void close_path(StateCanvas *cnv){cnv->current()->_path.close();}
 
 void fill(StateCanvas *cnv, SkPathBuilder *pb)
@@ -343,16 +291,6 @@ void fill(StateCanvas *cnv, SkPathBuilder *pb)
 void stroke(StateCanvas *cnv, SkPathBuilder *pb)
 {
    cnv->_canvas->drawPath(pb->detach(), cnv->current()->_stroke_paint);
-}
-
-void fill_preserve(StateCanvas *cnv, const SkPathBuilder *pb)
-{
-   cnv->_canvas->drawPath(pb->snapshot(), cnv->current()->_fill_paint);
-}
-
-void stroke_preserve(StateCanvas *cnv, const SkPathBuilder *pb)
-{
-   cnv->_canvas->drawPath(pb->snapshot(), cnv->current()->_stroke_paint);
 }
 
 void clip(StateCanvas *cnv, SkPathBuilder *pb)
@@ -436,53 +374,106 @@ void bezier_curve_to(StateCanvas *cnv, float x1, float y1, float x2, float y2, f
    cnv->current()->_path.cubicTo(x1, y1, x2, y2, endx, endy);
 }
 
-// struct Color {float r, g, b, a};
-
-void fill_style(StateCanvas *cnv, float r, float g, float b, float a)
+void cpp_fill_style(StateCanvas *cnv, SkColor4f c)
 {
-   cnv->current()->_fill_paint.setColor4f({r, g, b, a}, nullptr);
+   cnv->current()->_fill_paint.setColor4f(c, nullptr);
    cnv->current()->_fill_paint.setShader(nullptr);
 }
 
-void stroke_style(StateCanvas *cnv, Color c)
+///////////////////////////////////////////////////////////////////////////////////
+// Styles
+
+void cpp_stroke_style(StateCanvas *cnv, SkColor4f c)
 {
-   cnv->current()->_stroke_paint.setColor4f({c.r, c.g, c.b, c.a}, nullptr);
+   cnv->current()->_stroke_paint.setColor4f(c, nullptr);
    cnv->current()->_stroke_paint.setShader(nullptr);
 }
 
-void line_width(StateCanvas *cnv, float w)
+void cpp_fill_linear(StateCanvas* cnv,
+                        const SkPoint pts[2], 
+                        const SkColor4f colors[], 
+                        const float offsets[], 
+                        size_t count)
+{
+   SkGradient::Colors colors(
+                        {colors, count},
+                        offsets ? {offsets, count} : {},
+                        SkTileMode::kClamp);
+
+   cnv->current()->_fill_paint.setShader(
+      SkShaders::LinearGradient(pts, SkGradient(colors, {}))
+   );
+}
+
+void cpp_stroke_linear(StateCanvas* cnv,
+                        const SkPoint pts[2], 
+                        const SkColor4f colors[], 
+                        const float offsets[], 
+                        size_t count)
+{
+   SkGradient::Colors colors(
+                        {colors, count},
+                        offsets ? {offsets, count} : {},
+                        SkTileMode::kClamp);
+
+   cnv->current()->_stroke_paint.setShader(
+      SkShaders::LinearGradient(pts, SkGradient(colors, {}))
+   );
+}
+
+void cpp_fill_radial(StateCanvas* cnv,
+                        const SkPoint pts, float radius, 
+                        const SkColor4f colors[], 
+                        const float offsets[], 
+                        size_t count)
+{
+   SkGradient::Colors colors(
+                        {colors, count},
+                        offsets ? {offsets, count} : {},
+                        SkTileMode::kClamp);
+
+   cnv->current()->_fill_paint.setShader(
+      SkShaders::RadialGradient(pts, radius, SkGradient(colors, {}))
+   );
+}
+
+void cpp_stroke_radial(StateCanvas* cnv,
+                        const SkPoint pts, float radius, 
+                        const SkColor4f colors[], 
+                        const float offsets[], 
+                        size_t count)
+{
+   SkGradient::Colors colors(
+                        {colors, count},
+                        offsets ? {offsets, count} : {},
+                        SkTileMode::kClamp);
+
+   cnv->current()->_stroke_paint.setShader(
+      SkShaders::RadialGradient(pts, radius, SkGradient(colors, {}))
+   );
+}
+
+void cpp_line_width(StateCanvas *cnv, float w)
 { 
    cnv->current()->_stroke_paint.setStrokeWidth(w);
 }
 
-// void line_cap(StateCanvas *cnv, LineCap cap_)
-// {
-//    SkPaint::Cap cap = SkPaint::kButt_Cap;
-//    switch (cap_)
-//    {
-//       case line_cap_enum::butt:     cap = SkPaint::kButt_Cap; break;
-//       case line_cap_enum::round:    cap = SkPaint::kRound_Cap; break;
-//       case line_cap_enum::square:   cap = SkPaint::kSquare_Cap; break;
-//    }
-//    _state->stroke_paint().setStrokeCap(cap);
-// }
+void cpp_line_cap(StateCanvas *cnv, int cap)
+{
+   cnv->current()->_stroke_paint.setStrokeCap(
+                        static_cast<SkPaint::Cap>(cap));
+}
 
-// void canvas::line_join(join_enum join_)
-// {
-//    SkPaint::Join join = SkPaint::kMiter_Join;
-//    switch (join_)
-//    {
-//       case join_enum::bevel_join:   join = SkPaint::kBevel_Join; break;
-//       case join_enum::round_join:   join = SkPaint::kRound_Join; break;
-//       case join_enum::miter_join:   join = SkPaint::kMiter_Join; break;
-//    }
-//    _state->stroke_paint().setStrokeJoin(join);
-// }
+void cpp_line_join(StateCanvas *cnv, int join_)
+{
+   cnv->current()->_stroke_paint.setStrokeJoin(
+                        static_cast<SkPaint::Join>(join));
+}
 
-// void canvas::miter_limit(float limit)
-// {
-//    _state->stroke_paint().setStrokeMiter(limit);
-// }
+void cpp_miter_limit(StateCanvas *cnv, float limit)
+{
+   cnv->current()->_stroke_paint.setStrokeMiter(limit);
+}
 
 // void canvas::shadow_style(point offset, float blur, color c)
 // {
@@ -504,130 +495,16 @@ void line_width(StateCanvas *cnv, float w)
 //    _state->fill_paint().setImageFilter(shadow);
 // }
 
-// void canvas::global_composite_operation(composite_op_enum mode)
-// {
-//    SkBlendMode mode_ = SkBlendMode::kSrcOver;
-//    switch (mode)
-//    {
-//       case source_over:       mode_ = SkBlendMode::kSrcOver;      break;
-//       case source_atop:       mode_ = SkBlendMode::kSrcATop;      break;
-//       case source_in:         mode_ = SkBlendMode::kSrcIn;        break;
-//       case source_out:        mode_ = SkBlendMode::kSrcOut;       break;
+void cpp_global_composite_op(StateCanvas *cnv, int mode)
+{
+   auto mode_ = static_cast<SkBlendMode>(mode);
+   
+   cnv->current()->_stroke_paint.setBlendMode(mode_);
+   cnv->current()->_fill_paint.setBlendMode(mode_);
+}
 
-//       case destination_over:  mode_ = SkBlendMode::kDstOver;      break;
-//       case destination_atop:  mode_ = SkBlendMode::kDstATop;      break;
-//       case destination_in:    mode_ = SkBlendMode::kDstIn;        break;
-//       case destination_out:   mode_ = SkBlendMode::kDstOut;       break;
-
-//       case lighter:           mode_ = SkBlendMode::kLighten;      break;
-//       case darker:            mode_ = SkBlendMode::kDarken;       break;
-//       case copy:              mode_ = SkBlendMode::kSrc;          break;
-//       case xor_:              mode_ = SkBlendMode::kXor;          break;
-
-//       case difference:        mode_ = SkBlendMode::kDifference;   break;
-//       case exclusion:         mode_ = SkBlendMode::kExclusion;    break;
-//       case multiply:          mode_ = SkBlendMode::kMultiply;     break;
-//       case screen:            mode_ = SkBlendMode::kScreen;       break;
-
-//       case color_dodge:       mode_ = SkBlendMode::kColorDodge;   break;
-//       case color_burn:        mode_ = SkBlendMode::kColorBurn;    break;
-//       case soft_light:        mode_ = SkBlendMode::kSoftLight;    break;
-//       case hard_light:        mode_ = SkBlendMode::kHardLight;    break;
-
-//       case hue:               mode_ = SkBlendMode::kHue;          break;
-//       case saturation:        mode_ = SkBlendMode::kSaturation;   break;
-//       case color_op:          mode_ = SkBlendMode::kColor;        break;
-//       case luminosity:        mode_ = SkBlendMode::kLuminosity;   break;
-//    };
-//    _state->stroke_paint().setBlendMode(mode_);
-//    _state->fill_paint().setBlendMode(mode_);
-// }
-
-// namespace
-// {
-//    void convert_gradient(
-//       canvas::gradient const& gr
-//     , std::vector<SkColor4f>& colors_
-//     , std::vector<SkScalar>& pos
-//    )
-//    {
-//       // comp is color compensation to match quartz-2d
-//       constexpr auto comp = 1.3f;
-
-//       for (auto const& ccs : gr.color_space)
-//       {
-//          colors_.push_back(
-//             SkColor4f{
-//                std::min(ccs.color.red * comp, 1.0f)
-//              , std::min(ccs.color.green * comp, 1.0f)
-//              , std::min(ccs.color.blue * comp, 1.0f)
-//              , ccs.color.alpha
-//             }
-//          );
-//          pos.push_back(ccs.offset);
-//       }
-//    }
-
-//    void set_linear(canvas::linear_gradient const& gr, SkPaint& paint)
-//    {
-//       paint.setColor(SkColorSetRGB(0, 0, 0));
-//       SkPoint points[2] = {
-//          {gr.start.x, gr.start.y},
-//          {gr.end.x, gr.end.y}
-//       };
-//       std::vector<SkColor4f> colors_;
-//       std::vector<SkScalar> pos;
-//       convert_gradient(gr, colors_, pos);
-//       paint.setShader(
-//          SkGradientShader::MakeLinear(
-//             points, colors_.data()
-//           , SkColorSpace::MakeSRGB()->makeLinearGamma()
-//           , pos.data(), colors_.size()
-//           , SkTileMode::kClamp
-//           , SkGradientShader::Flags::kInterpolateColorsInPremul_Flag
-//           , nullptr
-//          ));
-//    }
-
-//    void set_radial(canvas::radial_gradient const& gr, SkPaint& paint)
-//    {
-//       paint.setColor(SkColorSetRGB(0, 0, 0));
-//       std::vector<SkColor4f> colors_;
-//       std::vector<SkScalar> pos;
-//       convert_gradient(gr, colors_, pos);
-//       paint.setShader(
-//          SkGradientShader::MakeTwoPointConical(
-//             {gr.c1.x, gr.c1.y}, gr.c1_radius
-//           , {gr.c2.x, gr.c2.y}, gr.c2_radius
-//           , colors_.data()
-//           , SkColorSpace::MakeSRGB()->makeLinearGamma()
-//           , pos.data(), colors_.size()
-//           , SkTileMode::kClamp
-//           , SkGradientShader::Flags::kInterpolateColorsInPremul_Flag
-//           , nullptr
-//          ));
-//    }
-// }
-
-// void canvas::fill_style(linear_gradient const& gr)
-// {
-//    set_linear(gr, _state->fill_paint());
-// }
-
-// void canvas::fill_style(radial_gradient const& gr)
-// {
-//    set_radial(gr, _state->fill_paint());
-// }
-
-// void canvas::stroke_style(linear_gradient const& gr)
-// {
-//    set_linear(gr, _state->stroke_paint());
-// }
-
-// void canvas::stroke_style(radial_gradient const& gr)
-// {
-//    set_radial(gr, _state->stroke_paint());
-// }
+///////////////////////////////////////////////////////////////////////////////////
+// Text
 
 // void canvas::font(class font const& font_)
 // {

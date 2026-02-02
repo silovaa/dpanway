@@ -51,39 +51,6 @@ struct Surface
     private SurfaceImpl m_impl;
 }
 
-struct Canvas
-{
-    this(CanvasImpl state, PathBuilderImpl path_builder)
-    {
-        m_impl = state;
-        m_builder = PathBuilderInternal(path_builder);
-    }
-
-    alias m_builder this;
-
-    void beginPath(){m_builder.reset();}
-
-    private extern(C++) static void cpp_clip(StateCanvas*, Path*);
-    void clip(ref Path p){cpp_clip(impl, &p);}
-    void clip(){clip(m_builder.path);}
-
-    private extern(C++) static Rect cpp_clip_extent(StateCanvas*); 
-    Rect clip_extent(){return clip_extent(impl);}
-
-    private extern(C++) static void cpp_fill(StateCanvas*, Path*);
-    void fill(ref Path p){fill(impl, &p);}
-    void fill(){fill(m_builder.path);}
-
-    private extern(C++) static void cpp_stroke(StateCanvas*, Path*);
-    void stroke(ref Path p){stroke(impl, &p);}
-    void stroke(){stroke(m_builder.path);}
-
-
-    mixin CanvasApi!CanvasImpl;
-
-    private PathBuilderInternal m_builder;
-}
-
 enum Cap: int {
     kButt,                  //!< no stroke extension
     kRound,                 //!< adds circle
@@ -133,61 +100,155 @@ enum Composite_op
     luminosity
 }
 
-struct ColorStop
-{
-    float   offset;
-    Color   color;
-}
-
 struct Gradient
 {
-    float[] offset;
     Color[] color;
+    float[] offset;
 }
 
-      struct linear_gradient : gradient
-      {
-         linear_gradient(float startx, float starty, float endx, float endy)
-          : start{startx, starty}
-          , end{endx, endy}
-         {}
+struct LinearGradient
+{
+    Point[2] pts;
+    Gradient gradient;
 
-         linear_gradient(point start, point end)
-          : start{start}
-          , end{end}
-         {}
+    alias gradient this;
 
-         point start = {};
-         point end = {};
-      };
+    this(Point[2] p, Color[] c, float[] o)
+    {
+        pts = p;
+        color = c;
+        offset = o;
+    }
+}
 
-      struct radial_gradient : gradient
-      {
-         radial_gradient(
-            float c1x, float c1y, float c1r,
-            float c2x, float c2y, float c2r
-         )
-          : c1{c1x, c1y}
-          , c1_radius{c1r}
-          , c2{c2x, c2y}
-          , c2_radius{c2r}
-         {}
+struct RadialGradient
+{
+    Point center;
+    float radius;
+    Gradient gradient;
 
-         radial_gradient(
-            point c1, float c1r,
-            point c2, float c2r
-         )
-          : c1{c1}
-          , c1_radius{c1r}
-          , c2{c2}
-          , c2_radius{c2r}
-         {}
+    alias gradient this;
 
-         point c1 = {};
-         float c1_radius = {};
-         point c2 = c1;
-         float c2_radius = c1_radius;
-      };
+    this(Point p, float r, Color[] c, float[] o)
+    {
+        pts = p;
+        color = c;
+        offset = o;
+    }
+}
+
+struct Canvas
+{
+    this(CanvasImpl state, PathBuilderImpl path_builder)
+    {
+        m_impl = state;
+        m_builder = PathBuilderInternal(path_builder);
+    }
+
+    alias m_builder this;
+
+    void beginPath(){m_builder.reset();}
+
+    private extern(C++) static void cpp_clip(StateCanvas*, Path*);
+    void clip(ref Path p){cpp_clip(impl, &p);}
+    void clip(){clip(m_builder.path);}
+
+    private extern(C++) static Rect cpp_clip_extent(StateCanvas*); 
+    Rect clip_extent(){return clip_extent(impl);}
+
+    private extern(C++) static void cpp_fill(StateCanvas*, Path*);
+    void fill(ref Path p){fill(impl, &p);}
+    void fill(){fill(m_builder.path);}
+
+    private extern(C++) static void cpp_stroke(StateCanvas*, Path*);
+    void stroke(ref Path p){stroke(impl, &p);}
+    void stroke(){stroke(m_builder.path);}
+
+    ///////////////////////////////////////////////////////////////////////////////////
+    // Styles
+
+    private extern(C++) static void cpp_fill_linear(StateCanvas* h, 
+                                                const(Point)* pts, 
+                                                const(Color)* colors, 
+                                                const(float)* offsets, 
+                                                size_t count);
+    @property void fill_style(in LinearGradient gr)
+    {
+        assert(gr.offset.length == 0 || 
+            gr.color.length == gr.offset.length, "Gradient offsets must match colors count");
+
+        // Если offset пуст, .ptr может вернуть мусор, поэтому используем тернарный оператор
+        cpp_fill_linear(
+            this.impl, 
+            gr.pts.ptr, 
+            gr.color.ptr, 
+            gr.offset.length ? gr.offset.ptr : null, 
+            gr.color.length
+        );
+    }
+
+    private extern(C++) static void cpp_stroke_linear(StateCanvas* h, 
+                                                const(Point)* pts, 
+                                                const(Color)* colors, 
+                                                const(float)* offsets, 
+                                                size_t count);
+    @property void stroke_style(in LinearGradient gr)
+    {
+        assert(gr.offset.length == 0 || 
+            gr.color.length == gr.offset.length, "Gradient offsets must match colors count");
+
+        cpp_stroke_linear(
+            this.impl, 
+            gr.pts.ptr, 
+            gr.color.ptr, 
+            gr.offset.length ? gr.offset.ptr : null, 
+            gr.color.length
+        );
+    }
+
+    private extern(C++) static void cpp_fill_radial(StateCanvas* h, 
+                                                const(Point) pts, float radius,
+                                                const(Color)* colors, 
+                                                const(float)* offsets, 
+                                                size_t count);
+    @property void fill_style(in RadialGradient gr)
+    {
+        assert(gr.offset.length == 0 || 
+            gr.color.length == gr.offset.length, "Gradient offsets must match colors count");
+
+        cpp_fill_radial(
+            this.impl, 
+            gr.pts, gr.radius,
+            gr.color.ptr, 
+            gr.offset.length ? gr.offset.ptr : null, 
+            gr.color.length
+        );
+    }
+
+    private extern(C++) static void cpp_stroke_radial(StateCanvas* h, 
+                                                const(Point) pts, float radius,
+                                                const(Color)* colors, 
+                                                const(float)* offsets, 
+                                                size_t count);
+    @property void stroke_style(in RadialGradient gr)
+    {
+        assert(gr.offset.length == 0 || 
+            gr.color.length == gr.offset.length, "Gradient offsets must match colors count");
+
+        cpp_stroke_radial(
+            this.impl, 
+            gr.pts, gr.radius,
+            gr.color.ptr, 
+            gr.offset.length ? gr.offset.ptr : null, 
+            gr.color.length
+        );
+    }
+
+    mixin CanvasApi!CanvasImpl;
+
+    private PathBuilderInternal m_builder;
+}
+
 
 private:
 
@@ -227,13 +288,21 @@ mixin template CanvasApi(ImplType) {
     // Styles
 
     mixin Set!("fill_style", Color);
-    mixin Set!("fill_style", Gradient);
     mixin Set!("stroke_style", Color);
-    mixin Set!("stroke_style", Gradient);
 
     mixin Set!("line_width", float);
     mixin Set!("line_cap", Cap);
     mixin Set!("line_join", Join);
     mixin Set!("miter_limit", float);
-    mixin Set!("composite_op", Composite_op);
+    mixin Set!("global_composite_op", Composite_op);
+
+    ///////////////////////////////////////////////////////////////////////////////////
+    // Rectangles
+    void              fill_rect(rect const& r);
+    void              fill_round_rect(rect const& r, float radius);
+    void              stroke_rect(rect const& r);
+    void              stroke_round_rect(rect const& r, float radius);
+
+    ///////////////////////////////////////////////////////////////////////////////////
+    // Text
 }
