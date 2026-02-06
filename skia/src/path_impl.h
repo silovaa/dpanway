@@ -108,18 +108,19 @@ void cpp_add_circle(SkPathBuilder *pb, float cx, float cy, float r)
 //    _state->path() = *p.impl();
 // }
 
-void clear_rect(StateCanvas *cnv, float left, float top, float right, float bottom)
-{
-   cnv->_canvas->drawRect({left, top, right, bottom}, cnv->_state->_clear_paint);
-}
+// void clear_rect(StateCanvas *cnv, float left, float top, float right, float bottom)
+// {
+//    cnv->_canvas->drawRect({left, top, right, bottom}, cnv->_state->_clear_paint);
+// }
  
-void quadratic_curve_to(StateCanvas *cnv, float x, float y, float endx, float endy)
+void quadratic_curve_to(SkPathBuilder *pb, const SkPoint& p, const SkPoint& end)
 {
-   cnv->current()->_path.quadTo(x, y, endx, endy);
+   pb->quadTo(p, end);
 }
 
-void bezier_curve_to(StateCanvas *cnv, float x1, float y1, float x2, float y2, float endx, float endy)
+void bezier_curve_to(SkPathBuilder *pb, const SkPoint& p, 
+                        const SkPoint& p1, const SkPoint& end)
 {
-   cnv->current()->_path.cubicTo(x1, y1, x2, y2, endx, endy);
+   pb->cubicTo(p, p1, end);
 }
 }
