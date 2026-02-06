@@ -10,7 +10,8 @@
 #include <SkCanvas.h>
 // #include <SkPath.h>
 // #include <SkPathBuilder.h>
-// #include <include/effects/SkGradient.h>
+#include <include/effects/SkGradient.h>
+
 #include <SkImageFilter.h>
 #include <include/effects/SkImageFilters.h>
 #include <SkTextBlob.h>
@@ -152,7 +153,7 @@ struct Canvas
 {
    StateCanvas*     state;
    SkPathBuilder*   path_builder;
-}
+};
 
 Canvas get_canvas(StateSurface *self)
 {
@@ -313,13 +314,15 @@ void cpp_fill_linear(StateCanvas* cnv,
                         const float offsets[], 
                         size_t count)
 {
-   SkGradient::Colors colors(
-                        {colors, count},
-                        offsets ? {offsets, count} : {},
-                        SkTileMode::kClamp);
+   SkGradient::Colors colorData(
+      {colors, count}, 
+      offsets ? SkSpan{offsets, count} : SkSpan<const float>{}, 
+      SkTileMode::kClamp,
+      nullptr // ColorSpace (nullptr = sRGB)
+   );
 
    cnv->current()->_fill_paint.setShader(
-      SkShaders::LinearGradient(pts, SkGradient(colors, {}))
+      SkShaders::LinearGradient(pts, SkGradient(colorData, {}))
    );
 }
 
@@ -329,13 +332,13 @@ void cpp_stroke_linear(StateCanvas* cnv,
                         const float offsets[], 
                         size_t count)
 {
-   SkGradient::Colors colors(
-                        {colors, count},
-                        offsets ? {offsets, count} : {},
-                        SkTileMode::kClamp);
+   SkGradient::Colors colorData(
+      {colors, count},
+      offsets ? SkSpan{offsets, count} : SkSpan<const float>{},
+      SkTileMode::kClamp);
 
    cnv->current()->_stroke_paint.setShader(
-      SkShaders::LinearGradient(pts, SkGradient(colors, {}))
+      SkShaders::LinearGradient(pts, SkGradient(colorData, {}))
    );
 }
 
@@ -345,13 +348,13 @@ void cpp_fill_radial(StateCanvas* cnv,
                         const float offsets[], 
                         size_t count)
 {
-   SkGradient::Colors colors(
-                        {colors, count},
-                        offsets ? {offsets, count} : {},
-                        SkTileMode::kClamp);
+   SkGradient::Colors colorData(
+      {colors, count},
+      offsets ? SkSpan{offsets, count} : SkSpan<const float>{},
+      SkTileMode::kClamp);
 
    cnv->current()->_fill_paint.setShader(
-      SkShaders::RadialGradient(pts, radius, SkGradient(colors, {}))
+      SkShaders::RadialGradient(pts, radius, SkGradient(colorData, {}))
    );
 }
 
@@ -361,13 +364,13 @@ void cpp_stroke_radial(StateCanvas* cnv,
                         const float offsets[], 
                         size_t count)
 {
-   SkGradient::Colors colors(
-                        {colors, count},
-                        offsets ? {offsets, count} : {},
-                        SkTileMode::kClamp);
+   SkGradient::Colors colorData(
+      {colors, count},
+      offsets ? SkSpan{offsets, count} : SkSpan<const float>{},
+      SkTileMode::kClamp);
 
    cnv->current()->_stroke_paint.setShader(
-      SkShaders::RadialGradient(pts, radius, SkGradient(colors, {}))
+      SkShaders::RadialGradient(pts, radius, SkGradient(colorData, {}))
    );
 }
 
@@ -382,7 +385,7 @@ void cpp_set_line_cap(StateCanvas *cnv, int cap)
                         static_cast<SkPaint::Cap>(cap));
 }
 
-void cpp_set_line_join(StateCanvas *cnv, int join_)
+void cpp_set_line_join(StateCanvas *cnv, int join)
 {
    cnv->current()->_stroke_paint.setStrokeJoin(
                         static_cast<SkPaint::Join>(join));
@@ -425,23 +428,23 @@ void cpp_set_global_composite_op(StateCanvas *cnv, int mode)
 // Rectangles
 
 void cpp_fill_rect(StateCanvas *cnv, const SkRect& r)
-{
-   cnv->_canvas.drawRect(r, cnv->current()->_fill_paint);
+{ 
+   cnv->_canvas->drawRect(r, cnv->current()->_fill_paint);
 }
 
 void cpp_fill_round_rect(StateCanvas *cnv, const SkRect& r, float radius)
 {
-   cnv->_canvas.drawRoundRect(r, radius, radius, cnv->current()->_fill_paint);
+   cnv->_canvas->drawRoundRect(r, radius, radius, cnv->current()->_fill_paint);
 }
 
 void cpp_stroke_rect(StateCanvas *cnv, const SkRect& r)
 {
-   cnv->_canvas.drawRect(r, cnv->current()->_stroke_paint);
+   cnv->_canvas->drawRect(r, cnv->current()->_stroke_paint);
 }
 
-void cpp_stroke_round_rect(StateCanvas *cnv, const SkRect&, float radius)
+void cpp_stroke_round_rect(StateCanvas *cnv, const SkRect& r, float radius)
 {
-   cnv->_canvas.drawRoundRect(r, radius, radius, cnv->current()->_stroke_paint);
+   cnv->_canvas->drawRoundRect(r, radius, radius, cnv->current()->_stroke_paint);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////

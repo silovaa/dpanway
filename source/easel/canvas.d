@@ -3,6 +3,7 @@ module easel.canvas;
 import easel.rect;
 import easel.affine;
 import easel.color;
+import easel.path;
 
 import easel.skia.sdk;
 
@@ -244,7 +245,7 @@ private:
     }
 }
 
-private:
+private:        
 
 mixin template CanvasApi(ImplType) {
     mixin ImplAccessor!ImplType;

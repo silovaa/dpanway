@@ -103,61 +103,59 @@ alias Path = SkPath;
 //     }());
 // }
 
-mixin template ApiMethod(ImplType, string name, alias FuncProto) {
+mixin template ApiMethod(ImplType, RetT, string name, Args...) {
     mixin(() {
-        import std.traits : Parameters, ReturnType, isAggregateType, fullyQualifiedName;
+        import std.traits : isAggregateType, fullyQualifiedName;
         import std.format : format;
         import std.range : iota;
         import std.array : join;
 
-        alias RetT = ReturnType!FuncProto;
-        alias ArgsT = Parameters!FuncProto;
-
-        // 1. Формируем типы для C++ декларации
+        // 1. Формируем типы для C++ декларации (extern)
         string[] cppArgs;
-        cppArgs ~= ImplType.stringof ~ " h"; // Первый аргумент всегда handle
+        cppArgs ~= ImplType.stringof ~ " h"; // Первый аргумент — контекст (handle)
         
-        string[] callArgs;
-        callArgs ~= "this.impl";
-
-        foreach(i, T; ArgsT) {
+        foreach(i, T; Args) {
             enum isStruct = isAggregateType!T;
             enum isEnum = is(T == enum);
             
-            string typeName = fullyQualifiedName!T;
-            string cppType = isEnum ? "int" : typeName;
+            // Для C++ биндинга энумы передаем как int
+            string cppType = isEnum ? "int" : fullyQualifiedName!T;
             string attr = isStruct ? "const ref " : "";
             
             cppArgs ~= format("%s%s arg%d", attr, cppType, i);
+        }
+
+        // 2. Параметры для D-метода (обертки)
+        string[] dParams;
+        string[] callArgs;
+        callArgs ~= "this.impl"; // Передаем внутренний указатель в C++
+
+        foreach(i, T; Args) {
+            string attr = isAggregateType!T ? "const ref " : "";
+            dParams ~= format("%s%s a%d", attr, fullyQualifiedName!T, i);
             
-            // Логика передачи аргумента
-            if (isEnum) 
-                callArgs ~= format("cast(%s) a%d", cppType, i);
-            else 
+            if (is(T == enum))
+                callArgs ~= format("cast(int) a%d", i);
+            else
                 callArgs ~= format("a%d", i);
         }
 
-        // 2. Типы для D-интерфейса
-        string[] dParams;
-        foreach(i, T; ArgsT) {
-            string attr = isAggregateType!T ? "const ref " : "";
-            dParams ~= format("%s%s a%d", attr, fullyQualifiedName!T, i);
-        }
-
         return format(q{
+            // Объявление внешней C++ функции (должна быть в canvas_impl.cpp)
             private extern(C++) static %1$s cpp_%2$s(%3$s) @nogc;
 
+            // D-метод
             %4$s %2$s(%5$s) @nogc {
                 %6$s cast(%4$s) cpp_%2$s(%7$s);
             }
         },
-        is(RetT == enum) ? "int" : fullyQualifiedName!RetT, // 1: Return C++
-        name,                                              // 2: Method Name
-        cppArgs.join(", "),                                // 3: C++ Args
-        fullyQualifiedName!RetT,                           // 4: Return D
-        dParams.join(", "),                                // 5: D Params
+        is(RetT == enum) ? "int" : fullyQualifiedName!RetT, // 1: C++ Return
+        name,                                              // 2: Name
+        cppArgs.join(", "),                                // 3: C++ Signature
+        fullyQualifiedName!RetT,                           // 4: D Return
+        dParams.join(", "),                                // 5: D Signature
         is(RetT == void) ? "" : "return",                  // 6: return keyword
-        callArgs.join(", ")                                // 7: Call site
+        callArgs.join(", ")                                // 7: Call args
         );
     }());
 }
@@ -193,6 +191,9 @@ mixin template ApiSetter(ImplType, string name, T) {
 
 mixin template ApiProperty(ImplType, string name, T) {
     mixin(() {
+        import std.traits : isAggregateType, fullyQualifiedName;
+        import std.format : format;
+        
         enum isEnum = is(T == enum);
         enum isStruct = isAggregateType!T;
 
