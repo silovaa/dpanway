@@ -15,33 +15,33 @@ extern(C++) struct CanvasPtr
 struct Surface
 {
     private extern(C++) static SurfaceImpl make_egl_current (SurfaceImpl, int, int, int, int);
-    bool fromFramebuffer(int width, int height, int sample = 4, int stencil = 8)
+    bool fromFramebuffer(int width, int height, int sample = 4, int stencil = 8) @nogc
     {
         m_impl = make_egl_current(m_impl, width, height, sample, stencil);
         return m_impl !is null;
     }
 
     private extern(C++) static void destroy_surface(SurfaceImpl);
-    void destroy()
+    void destroy() @nogc
     {
         destroy_surface(impl); 
         m_impl = null;
     }
 
     private extern(C++) static CanvasPtr get_canvas(SurfaceImpl);
-    Canvas canvas()
+    Canvas canvas() @nogc
     {
         auto ptr = get_canvas(impl);
         return Canvas(ptr.state, ptr.path_builder);
     }
 
     extern(C++) static void flush_and_submit(SurfaceImpl);
-    void flush(){flush_and_submit(impl);}
+    void flush() @nogc {flush_and_submit(impl);}
 
     private extern(C++) static int width(SurfaceImpl);
-    int width()  {return width(impl);}
+    int width() @nogc {return width(impl);}
     private extern(C++) static int height(SurfaceImpl);
-    int height() {return height(impl);}
+    int height() @nogc {return height(impl);}
 
     private SurfaceImpl impl() @nogc
     {
@@ -139,30 +139,18 @@ struct RadialGradient
 
 struct Canvas
 {
-    this(CanvasImpl state, PathBuilderImpl path_builder)
-    {
-        m_impl = state;
-        m_builder = PathBuilderInternal(path_builder);
-    }
-
     alias m_builder this;
 
-    void beginPath(){m_builder.reset();}
+    ///////////////////////////////////////////////////////////////////////////////////
+    // State
 
-    private extern(C++) static void cpp_clip(StateCanvas*, Path*);
-    void clip(ref Path p){cpp_clip(impl, &p);}
+    void beginPath(){m_builder.reset();}
     void clip(){clip(m_builder.path);}
+    void fill(){fill(m_builder.path);}
+    void stroke(){stroke(m_builder.path);}
 
     private extern(C++) static Rect cpp_clip_extent(StateCanvas*); 
     Rect clip_extent(){return clip_extent(impl);}
-
-    private extern(C++) static void cpp_fill(StateCanvas*, Path*);
-    void fill(ref Path p){fill(impl, &p);}
-    void fill(){fill(m_builder.path);}
-
-    private extern(C++) static void cpp_stroke(StateCanvas*, Path*);
-    void stroke(ref Path p){stroke(impl, &p);}
-    void stroke(){stroke(m_builder.path);}
 
     ///////////////////////////////////////////////////////////////////////////////////
     // Styles
@@ -246,9 +234,15 @@ struct Canvas
 
     mixin CanvasApi!CanvasImpl;
 
-    private PathBuilderInternal m_builder;
-}
+private: 
+    PathBuilderInternal m_builder;
 
+    this(CanvasImpl state, PathBuilderImpl path_builder)
+    {
+        m_impl = state;
+        m_builder = PathBuilderInternal(path_builder);
+    }
+}
 
 private:
 
@@ -270,7 +264,6 @@ mixin template CanvasApi(ImplType) {
 
     ///////////////////////////////////////////////////////////////////////////////////
     // Transforms
-
     mixin Void!("translate", float , float); 
     mixin Void!("rotate", float); 
     mixin Void!("scale", float , float);
@@ -280,13 +273,14 @@ mixin template CanvasApi(ImplType) {
 
     ///////////////////////////////////////////////////////////////////////////////////
     // State
-
     mixin Void!("save");
     mixin Void!("restore");
+    mixin Void!("clip", Path);
+    mixin Void!("fill", Path);
+    mixin Void!("stroke", Path);
 
     ///////////////////////////////////////////////////////////////////////////////////
     // Styles
-
     mixin Set!("fill_style", Color);
     mixin Set!("stroke_style", Color);
 
@@ -298,10 +292,10 @@ mixin template CanvasApi(ImplType) {
 
     ///////////////////////////////////////////////////////////////////////////////////
     // Rectangles
-    void              fill_rect(rect const& r);
-    void              fill_round_rect(rect const& r, float radius);
-    void              stroke_rect(rect const& r);
-    void              stroke_round_rect(rect const& r, float radius);
+    mixin Void!("fill_rect", Rect);
+    mixin Void!("fill_round_rect", Rect, float);
+    mixin Void!("stroke_rect", Rect);
+    mixin Void!("stroke_round_rect", Rect, float);
 
     ///////////////////////////////////////////////////////////////////////////////////
     // Text

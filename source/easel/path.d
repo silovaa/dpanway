@@ -1,7 +1,7 @@
 module easel.skia.path;
 
 import easel.rect;
-import easel.circle;
+//import easel.circle;
 
 enum FillRule: ubyte
 {
@@ -20,7 +20,7 @@ struct PathBuilder
         self = PathBuilderInternal(cpp_make_builder(rule));
     }
 
-    ~this(){self.destruct();}
+    ~this(){cpp_delete_builder(self);}
 
     alias self this;
     @disable this(this);
@@ -33,73 +33,10 @@ package struct PathBuilderInternal
 {
     this(PathBuilderImpl impl){m_path_builder = impl;}
 
-    void destruct(){cpp_delete_builder(m_path_builder);}
-
-    mixin BoolMethod!("is_empty");
-
-    bool    includes(Point p)
+    bool point_in_path(Point p)
     {return path.includes(p.x, p.y);}
     
-    Rect    bounds() const;
-
-    mixin VoidMethod!("close");
-
-    //mixin BoolMethod!("point_in_path", float, float); 
-    mixin VoidMethod!("move_to", float, float);
-    mixin VoidMethod!("line_to", float, float);
-    mixin VoidMethod!("arc_to", float, float, float, float, float);
-    mixin VoidMethod!("arc", Point, float, float, float, bool);
-   
-    mixin VoidMethod!("add_rect", float, float, float, float);
-    mixin VoidMethod!("add_circle", float, float, float);
-    mixin VoidMethod!("clear_rect", float, float, float, float);
-    mixin VoidMethod!("quadratic_curve_to", float, float, float, float);
-    mixin VoidMethod!("bezier_curve_to", float, float, float, float, float, float);
-
-    void    add_rect(ref const Rect r);
-    void    add_round_rect(ref const Rect r, float radius);
-    void    add_circle(ref const Circle c);
-
-    void    add_rect(float x, float y, float width, float height);
-    void    add_round_rect(
-                float x, float y,
-                float width, float height,
-                float radius
-            );
-    void    add_circle(float cx, float cy, float radius);
-
-    void    move_to(Point p);
-    void    line_to(Point p);
-    void    arc_to(Point p1, Point p2, float radius);
-    void    arc(Point p, float radius,
-                float start_angle, float end_angle,
-                bool ccw = false
-            );
-
-    void    quadratic_curve_to(Point cp, Point end);
-    void    bezier_curve_to(Point cp1, Point cp2, Point end);
-
-    void    move_to(float x, float y);
-    void    line_to(float x, float y);
-    void    arc_to(
-                float x1, float y1,
-                float x2, float y2,
-                float radius
-            );
-    void    arc(
-                float x, float y, float radius,
-                float start_angle, float end_angle,
-                bool ccw = false
-            );
-
-    void    quadratic_curve_to(float cpx, float cpy, float x, float y);
-    void    bezier_curve_to(
-                float cp1x, float cp1y,
-                float cp2x, float cp2y,
-                float x, float y
-            );
-
-    void    fill_rule(FillRule rule);
+    //Rect    bounds() const;
 
     private extern(C++) static Path cpp_builder_snapshot(PathBuilderImpl);
     ref Path path() nothrow @nogc
@@ -128,10 +65,50 @@ package struct PathBuilderInternal
         isDirty = false;
     }
 
+    mixin PathBuilderApi!PathBuilderImpl;
+
 private:
     PathBuilderImpl m_path_builder;
     Path m_path;
     bool isDirty = false;
+}
 
-    inout(PathBuilder) impl() inout nothrow @nogc {return m_path;}
+private:
+
+mixin template PathBuilderApi(ImplType) {
+    mixin ImplAccessor!ImplType;
+    // Хелпер для void методов (для краткости)
+    mixin template Void(string name, Args...) {
+        mixin ApiMethod!(ImplType, void, name, Args);
+    }
+    mixin template Bool(string name, Args...) {
+        mixin ApiMethod!(ImplType, bool, name, Args);
+    }
+    // Хелпер для Setter (@property)
+    mixin template Set(string name, T) {
+        mixin ApiSetter!(ImplType, name, T);
+    }
+
+    // mixin template Prop(string name, T) {
+    //     mixin ApiProperty!(ImplType, name, T);
+    // }
+    
+    mixin Bool!("is_empty");
+    mixin Void!("close");
+
+    mixin Set!("fill_type", FillRule);
+
+    mixin Void!("move_to", Point);
+    mixin Void!("line_to", Point);
+    mixin Void!("arc_to", Point, Point, float);
+    mixin Void!("quadratic_curve_to", Point, Point);
+    mixin Void!("bezier_curve_to", Point, Point, Point);
+
+    mixin Void!("arc", Point, float, float, float, bool);
+   
+    mixin Void!("add_rect", Rect);
+    mixin Void!("add_round_rect", Rect, float);
+    mixin Void!("add_circle", Point, float);
+    
+    //mixin Void!("clear_rect", float, float, float, float);
 }

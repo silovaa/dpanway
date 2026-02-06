@@ -58,7 +58,6 @@ public:
       _stroke_paint.setStyle(SkPaint::kStroke_Style);
       }
 
-      //SkPathBuilder        _path;
       SkPaint        _fill_paint;
       SkPaint        _stroke_paint;
       //class font     _font;
@@ -98,8 +97,8 @@ GrDirectContext* context()
 struct StateSurface
 {
    sk_sp<SkSurface> m_surface;
-   StateCanvas m_state;
-   SkPathBuilder   m_path_builder;
+   StateCanvas      m_state;
+   SkPathBuilder    m_path_builder;
 };
 
 StateSurface* make_egl_current(StateSurface *self, int width, int height, 
@@ -157,7 +156,7 @@ struct Canvas
 
 Canvas get_canvas(StateSurface *self)
 {
-   return {&(self->m_state), &(self->m_builder)};
+   return {&(self->m_state), &(self->m_path_builder)};
 }
 
 void flush_and_submit(StateSurface *self)
@@ -190,10 +189,6 @@ StateCanvas::StateCanvas():
 //     , _state{std::make_unique<canvas_state>()}
 //    {
 //       _state->set_inv_affine(transform().invert());
-//    }
-
-//    canvas::~canvas()
-//    {
 //    }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -232,16 +227,15 @@ void cpp_skew(StateCanvas *cnv, double sx, double sy){cnv->_canvas->skew(sx, sy)
 //    return {float(up.x), float(up.y)};
 // }
 
-void transform(StateCanvas *cnv, AffineTransform& m) 
+AffineTransform cpp_get_transform(StateCanvas *cnv) 
 {
    auto mat = cnv->_canvas->getLocalToDeviceAs3x3();
    SkScalar sc[6];
    (void) mat.asAffine(sc);
-   m.a = sc[0]; m.b = sc[1]; m.c = sc[2]; 
-   m.d = sc[3]; m.tx = sc[4]; m.ty = sc[5];
+   return {sc[0], sc[1], sc[2], sc[3], sc[4], sc[5]};
 }
 
-void transform(StateCanvas *cnv, AffineTransform const& mat)
+void cpp_set_transform(StateCanvas *cnv, AffineTransform const& mat)
 {
    SkMatrix skMat;
 
@@ -256,14 +250,6 @@ void transform(StateCanvas *cnv, AffineTransform const& mat)
    skMat.setAffine(sc);
    cnv->_canvas->setMatrix(skMat);
 }
-
-// void canvas::transform(double a, double b, double c, double d, double tx, double ty)
-// {
-//    SkMatrix mat;
-//    SkScalar sc[9] = {float(a), float(b), float(c), float(d), float(tx), float(ty)};
-//    mat.setAffine(sc);
-//    _canvas->setMatrix(mat);
-// }
 
 ///////////////////////////////////////////////////////////////////////////////////
 // State
@@ -281,21 +267,19 @@ void cpp_restore(StateCanvas *cnv)
       cnv->_stack.pop();
 }
 
-void close_path(StateCanvas *cnv){cnv->current()->_path.close();}
-
-void fill(StateCanvas *cnv, SkPathBuilder *pb)
+void cpp_fill(StateCanvas *cnv, const SkPath &p)
 {
-   cnv->_canvas->drawPath(pb->detach(), cnv->current()->_fill_paint);
+   cnv->_canvas->drawPath(p, cnv->current()->_fill_paint);
 }
 
-void stroke(StateCanvas *cnv, SkPathBuilder *pb)
+void cpp_stroke(StateCanvas *cnv, const SkPath &p)
 {
-   cnv->_canvas->drawPath(pb->detach(), cnv->current()->_stroke_paint);
+   cnv->_canvas->drawPath(p, cnv->current()->_stroke_paint);
 }
 
-void clip(StateCanvas *cnv, SkPathBuilder *pb)
+void clip(StateCanvas *cnv,  const SkPath &p)
 {
-   cnv->_canvas->clipPath(pb->detach(), true);
+   cnv->_canvas->clipPath(p, true);
 }
 
 struct Rect  {float l, t, r, b;};
@@ -308,82 +292,16 @@ Rect clip_extent(StateCanvas *cnv)
    return {r.left(), r.top(), r.right(), r.bottom()};
 }
 
-bool point_in_path(StateCanvas *cnv, float x, float y)
-{
-   return cnv->current()->_path.contains({x, y});
-}
+///////////////////////////////////////////////////////////////////////////////////
+// Styles
 
-void move_to(StateCanvas *cnv, Point p)
-{
-   cnv->current()->_path.moveTo(p.x, p.y);
-}
-
-void line_to(StateCanvas *cnv, Point p)
-{
-   cnv->current()->_path.lineTo(p.x, p.y);
-}
-
-void arc_to(StateCanvas *cnv, Point p1, Point p2, float radius)
-{
-   cnv->current()->_path.arcTo(p1.x, p1.y, p2.x, p2.y, radius);
-}
-
-void arc(StateCanvas *cnv,
-   Point p, float radius,
-   float start_angle, float end_angle,
-   bool ccw
-)
-{
-   auto start = start_angle * 180 / std::numbers::pi;
-   auto sweep = (end_angle - start_angle) * 180 / std::numbers::pi;
-   sweep = std::abs(sweep) * (ccw? -1 : 1);
-
-   cnv->current()->_path.addArc(
-      {p.x-radius, p.y-radius, p.x+radius, p.y+radius},
-      start, sweep
-   );
-}
-
-void add_rect(StateCanvas *cnv, float left, float top, float right, float bottom)
-{
-   cnv->current()->_path.addRect(left, top, right, bottom);
-}
-
-void add_circle(StateCanvas *cnv, float cx, float cy, float r)
-{
-   cnv->current()->_path.addCircle(cx, cy, r);
-}
-
-// void canvas::add_path(path const& p)
-// {
-//    _state->path() = *p.impl();
-// }
-
-void clear_rect(StateCanvas *cnv, float left, float top, float right, float bottom)
-{
-   cnv->_canvas->drawRect({left, top, right, bottom}, cnv->_state->_clear_paint);
-}
- 
-void quadratic_curve_to(StateCanvas *cnv, float x, float y, float endx, float endy)
-{
-   cnv->current()->_path.quadTo(x, y, endx, endy);
-}
-
-void bezier_curve_to(StateCanvas *cnv, float x1, float y1, float x2, float y2, float endx, float endy)
-{
-   cnv->current()->_path.cubicTo(x1, y1, x2, y2, endx, endy);
-}
-
-void cpp_fill_style(StateCanvas *cnv, SkColor4f c)
+void cpp_set_fill_style(StateCanvas *cnv, SkColor4f c)
 {
    cnv->current()->_fill_paint.setColor4f(c, nullptr);
    cnv->current()->_fill_paint.setShader(nullptr);
 }
 
-///////////////////////////////////////////////////////////////////////////////////
-// Styles
-
-void cpp_stroke_style(StateCanvas *cnv, SkColor4f c)
+void cpp_set_stroke_style(StateCanvas *cnv, SkColor4f c)
 {
    cnv->current()->_stroke_paint.setColor4f(c, nullptr);
    cnv->current()->_stroke_paint.setShader(nullptr);
@@ -453,24 +371,24 @@ void cpp_stroke_radial(StateCanvas* cnv,
    );
 }
 
-void cpp_line_width(StateCanvas *cnv, float w)
+void cpp_set_line_width(StateCanvas *cnv, float w)
 { 
    cnv->current()->_stroke_paint.setStrokeWidth(w);
 }
 
-void cpp_line_cap(StateCanvas *cnv, int cap)
+void cpp_set_line_cap(StateCanvas *cnv, int cap)
 {
    cnv->current()->_stroke_paint.setStrokeCap(
                         static_cast<SkPaint::Cap>(cap));
 }
 
-void cpp_line_join(StateCanvas *cnv, int join_)
+void cpp_set_line_join(StateCanvas *cnv, int join_)
 {
    cnv->current()->_stroke_paint.setStrokeJoin(
                         static_cast<SkPaint::Join>(join));
 }
 
-void cpp_miter_limit(StateCanvas *cnv, float limit)
+void cpp_set_miter_limit(StateCanvas *cnv, float limit)
 {
    cnv->current()->_stroke_paint.setStrokeMiter(limit);
 }
@@ -495,12 +413,35 @@ void cpp_miter_limit(StateCanvas *cnv, float limit)
 //    _state->fill_paint().setImageFilter(shadow);
 // }
 
-void cpp_global_composite_op(StateCanvas *cnv, int mode)
+void cpp_set_global_composite_op(StateCanvas *cnv, int mode)
 {
    auto mode_ = static_cast<SkBlendMode>(mode);
    
    cnv->current()->_stroke_paint.setBlendMode(mode_);
    cnv->current()->_fill_paint.setBlendMode(mode_);
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+// Rectangles
+
+void cpp_fill_rect(StateCanvas *cnv, const Rect& r)
+{
+   cnv->_canvas.drawRect(r, cnv->current()->_fill_paint);
+}
+
+void cpp_fill_round_rect(StateCanvas *cnv, const Rect& r, float radius)
+{
+   cnv->_canvas.drawRoundRect(r, radius, radius, cnv->current()->_fill_paint);
+}
+
+void cpp_stroke_rect(StateCanvas *cnv, const Rect& r)
+{
+   cnv->_canvas.drawRect(r, cnv->current()->_stroke_paint);
+}
+
+void cpp_stroke_round_rect(StateCanvas *cnv, const Rect&, float radius)
+{
+   cnv->_canvas.drawRoundRect(r, radius, radius, cnv->current()->_stroke_paint);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -620,9 +561,4 @@ void cpp_global_composite_op(StateCanvas *cnv, int mode)
 //       };
 
 //    return std::visit(draw_picture, pic.impl()->base());
-// }
-
-// void canvas::add_round_rect_impl(rect const& r, float radius)
-// {
-//    _state->path().addRoundRect({r.left, r.top, r.right, r.bottom}, radius, radius);
 // }

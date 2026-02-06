@@ -103,113 +103,135 @@ alias Path = SkPath;
 //     }());
 // }
 
-import std.format;
-import std.array;
-import std.traits : isAggregateType;
-
-mixin template ApiMethod(ImplType, RetType, string name, Args...) {
+mixin template ApiMethod(ImplType, string name, alias FuncProto) {
     mixin(() {
-        string[] params;
-        string[] args;
-        static foreach (i, T; Args) {
-            params ~= format("%s v%d", T.stringof, i);
-            args   ~= format("v%d", i);
+        import std.traits : Parameters, ReturnType, isAggregateType, fullyQualifiedName;
+        import std.format : format;
+        import std.range : iota;
+        import std.array : join;
+
+        alias RetT = ReturnType!FuncProto;
+        alias ArgsT = Parameters!FuncProto;
+
+        // 1. Формируем типы для C++ декларации
+        string[] cppArgs;
+        cppArgs ~= ImplType.stringof ~ " h"; // Первый аргумент всегда handle
+        
+        string[] callArgs;
+        callArgs ~= "this.impl";
+
+        foreach(i, T; ArgsT) {
+            enum isStruct = isAggregateType!T;
+            enum isEnum = is(T == enum);
+            
+            string typeName = fullyQualifiedName!T;
+            string cppType = isEnum ? "int" : typeName;
+            string attr = isStruct ? "const ref " : "";
+            
+            cppArgs ~= format("%s%s arg%d", attr, cppType, i);
+            
+            // Логика передачи аргумента
+            if (isEnum) 
+                callArgs ~= format("cast(%s) a%d", cppType, i);
+            else 
+                callArgs ~= format("a%d", i);
         }
 
-        // Определяем, нужно ли слово return
-        string returnStmt = (RetType.stringof != "void") ? "return " : "";
+        // 2. Типы для D-интерфейса
+        string[] dParams;
+        foreach(i, T; ArgsT) {
+            string attr = isAggregateType!T ? "const ref " : "";
+            dParams ~= format("%s%s a%d", attr, fullyQualifiedName!T, i);
+        }
 
         return format(q{
-            // Объявление внешней C++ функции с префиксом cpp_
-            private extern(C++) static %2$s cpp_%1$s(%5$s h, %3$s) @nogc;
+            private extern(C++) static %1$s cpp_%2$s(%3$s) @nogc;
 
-            // Публичный метод в D
-            %2$s %1$s(%3$s) @nogc {
-                %4$s cpp_%1$s(this.impl, %6$s);
-            } 
-        }, 
-        name,               // %1
-        RetType.stringof,    // %2
-        params.join(", "),  // %3
-        returnStmt,         // %4
-        ImplType.stringof,   // %5
-        args.join(", ")     // %6
+            %4$s %2$s(%5$s) @nogc {
+                %6$s cast(%4$s) cpp_%2$s(%7$s);
+            }
+        },
+        is(RetT == enum) ? "int" : fullyQualifiedName!RetT, // 1: Return C++
+        name,                                              // 2: Method Name
+        cppArgs.join(", "),                                // 3: C++ Args
+        fullyQualifiedName!RetT,                           // 4: Return D
+        dParams.join(", "),                                // 5: D Params
+        is(RetT == void) ? "" : "return",                  // 6: return keyword
+        callArgs.join(", ")                                // 7: Call site
         );
     }());
 }
 
 mixin template ApiSetter(ImplType, string name, T) {
     mixin(() {
-        import std.traits : isAggregateType;
+        import std.traits : isAggregateType, fullyQualifiedName;
         import std.format : format;
 
         enum isEnum = is(T == enum);
         enum isStruct = isAggregateType!T;
 
-        string cppType = isEnum ? "int" : T.stringof;
-        
-        // В D 'const ref' соответствует 'const T&' в C++
+        string cppType = isEnum ? "int" : fullyQualifiedName!T;
         string dAttr = isStruct ? "const ref " : "";
-        
         string callValue = isEnum ? format("cast(%s) value", cppType) : "value";
 
-        // Мы используем T.stringof для типа параметра
         return format(q{
-            // Внешняя C++ функция
-            private extern(C++) static void cpp_set_%1$s(%3$s h, %4$s%2$s value) @nogc;
+            private extern(C++) static void cpp_set_%1$s(%2$s h, %3$s%4$s value) @nogc;
 
-            // D-свойство (Setter)
-            @property void %1$s(%6$s%5$s value) @nogc {
-                cpp_set_%1$s(this.impl, %7$s);
+            @property void %1$s(%3$s%5$s value) @nogc {
+                cpp_set_%1$s(this.impl, %6$s);
             }
-        },
-        name,               // %1
-        cppType,            // %2
-        ImplType.stringof,  // %3
-        dAttr,              // %4 - здесь будет "const ref " для структур
-        T.stringof,         // %5
-        isStruct ? "const ref " : "", // %6
-        callValue           // %7
+        }, 
+        name,               // 1
+        ImplType.stringof,  // 2
+        dAttr,              // 3
+        cppType,            // 4
+        fullyQualifiedName!T, // 5
+        callValue           // 6
         );
     }());
 }
 
 mixin template ApiProperty(ImplType, string name, T) {
     mixin(() {
-        import std.traits : isAggregateType;
-        import std.format : format;
-
         enum isEnum = is(T == enum);
         enum isStruct = isAggregateType!T;
 
-        string cppType = isEnum ? "int" : T.stringof;
+        // Определяем тип для стороны C++
+        // Если enum, передаем как int (стандарт для большинства C++ API)
+        string cppType = isEnum ? "int" : fullyQualifiedName!T;
         
-        // В D 'const ref' соответствует 'const T&' в C++
+        // Определяем атрибут передачи (структуры по ссылке, остальное по значению)
         string dAttr = isStruct ? "const ref " : "";
         
-        string callValue = isEnum ? format("cast(%s) value", cppType) : "value";
+        // Логика вызова сеттера:
+        // Для структур передаем 'value' напрямую, чтобы работал 'ref'.
+        // Для enum выполняем cast в базовый тип.
+        string callValue = (isEnum) 
+            ? format("cast(%s) value", cppType) 
+            : "value";
 
         return format(q{
-            // --- C++ Declarations (через призму D-синтаксиса) ---
+            /** C++ Bridge Declarations **/
             private extern(C++) static %2$s cpp_get_%1$s(%3$s h) @nogc;
             private extern(C++) static void cpp_set_%1$s(%3$s h, %4$s%2$s value) @nogc;
 
-            // --- D Property Interface ---
+            /** D Property Interface **/
             @property %5$s %1$s() @nogc {
+                // Вызываем C++ геттер и кастуем результат обратно в тип D (T)
                 return cast(%5$s) cpp_get_%1$s(this.impl);
             }
 
-            @property void %1$s(%6$s%5$s value) @nogc {
-                cpp_set_%1$s(this.impl, %7$s);
+            @property void %1$s(%4$s%5$s value) @nogc {
+                // Вызываем C++ сеттер
+                cpp_set_%1$s(this.impl, %6$s);
             }
         }, 
-        name,               // %1
-        cppType,            // %2
-        ImplType.stringof,  // %3
-        dAttr,              // %4 - здесь будет "const ref " для структур
-        T.stringof,         // %5
-        isStruct ? "const ref " : "", // %6
-        callValue           // %7
+        name,               // %1: имя свойства
+        cppType,            // %2: тип на стороне C++
+        ImplType.stringof,  // %3: тип реализации (handle)
+        dAttr,              // %4: "const ref " или пусто
+        fullyQualifiedName!T, // %5: полный тип D
+        callValue           // %6: выражение для передачи в функцию
         );
     }());
 }
