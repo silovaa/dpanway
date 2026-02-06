@@ -292,7 +292,7 @@ mixin template CanvasApi(ImplType) {
 
     ///////////////////////////////////////////////////////////////////////////////////
     // Rectangles
-    mixin Void!("fill_rect", Rect);
+    mixin Void!("fill_rect", Rect) ;
     mixin Void!("fill_round_rect", Rect, float);
     mixin Void!("stroke_rect", Rect);
     mixin Void!("stroke_round_rect", Rect, float);

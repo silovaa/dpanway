@@ -282,10 +282,10 @@ void clip(StateCanvas *cnv,  const SkPath &p)
    cnv->_canvas->clipPath(p, true);
 }
 
-struct Rect  {float l, t, r, b;};
+//struct Rect  {float l, t, r, b;};
 //struct Point {float x, y;};
 
-Rect clip_extent(StateCanvas *cnv)
+SkRect clip_extent(StateCanvas *cnv)
 {
    SkRect r;
    cnv->_canvas->getLocalClipBounds(&r);
@@ -424,22 +424,22 @@ void cpp_set_global_composite_op(StateCanvas *cnv, int mode)
 ///////////////////////////////////////////////////////////////////////////////////
 // Rectangles
 
-void cpp_fill_rect(StateCanvas *cnv, const Rect& r)
+void cpp_fill_rect(StateCanvas *cnv, const SkRect& r)
 {
    cnv->_canvas.drawRect(r, cnv->current()->_fill_paint);
 }
 
-void cpp_fill_round_rect(StateCanvas *cnv, const Rect& r, float radius)
+void cpp_fill_round_rect(StateCanvas *cnv, const SkRect& r, float radius)
 {
    cnv->_canvas.drawRoundRect(r, radius, radius, cnv->current()->_fill_paint);
 }
 
-void cpp_stroke_rect(StateCanvas *cnv, const Rect& r)
+void cpp_stroke_rect(StateCanvas *cnv, const SkRect& r)
 {
    cnv->_canvas.drawRect(r, cnv->current()->_stroke_paint);
 }
 
-void cpp_stroke_round_rect(StateCanvas *cnv, const Rect&, float radius)
+void cpp_stroke_round_rect(StateCanvas *cnv, const SkRect&, float radius)
 {
    cnv->_canvas.drawRoundRect(r, radius, radius, cnv->current()->_stroke_paint);
 }
