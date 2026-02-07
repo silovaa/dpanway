@@ -39,6 +39,8 @@ alias SurfaceImpl = StateSurface*;
 alias PathBuilderImpl = PathBuilder*;
 alias Path = SkPath;
 
+
+
 // import std.traits : Parameters;
 
 // mixin template VoidMethod(string name, Args...) {
@@ -193,7 +195,7 @@ mixin template ApiProperty(ImplType, string name, T) {
     mixin(() {
         import std.traits : isAggregateType, fullyQualifiedName;
         import std.format : format;
-        
+
         enum isEnum = is(T == enum);
         enum isStruct = isAggregateType!T;
 
