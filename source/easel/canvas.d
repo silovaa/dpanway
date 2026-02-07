@@ -15,33 +15,33 @@ extern(C++) struct CanvasPtr
 
 struct Surface
 {
-    private extern(C++) static SurfaceImpl make_egl_current (SurfaceImpl, int, int, int, int);
+    private extern(C++) @nogc static SurfaceImpl make_egl_current(SurfaceImpl, int, int, int, int);
     bool fromFramebuffer(int width, int height, int sample = 4, int stencil = 8) @nogc
     {
         m_impl = make_egl_current(m_impl, width, height, sample, stencil);
         return m_impl !is null;
     }
 
-    private extern(C++) static void destroy_surface(SurfaceImpl);
+    private extern(C++) @nogc static void destroy_surface(SurfaceImpl);
     void destroy() @nogc
     {
         destroy_surface(impl); 
         m_impl = null;
     }
 
-    private extern(C++) static CanvasPtr get_canvas(SurfaceImpl);
+    private extern(C++) @nogc static CanvasPtr get_canvas(SurfaceImpl);
     Canvas canvas() @nogc
     {
         auto ptr = get_canvas(impl);
         return Canvas(ptr.state, ptr.path_builder);
     }
 
-    extern(C++) static void flush_and_submit(SurfaceImpl);
+    extern(C++) @nogc static void flush_and_submit(SurfaceImpl);
     void flush() @nogc {flush_and_submit(impl);}
 
-    private extern(C++) static int width(SurfaceImpl);
+    private extern(C++) @nogc static int width(SurfaceImpl);
     int width() @nogc {return width(impl);}
-    private extern(C++) static int height(SurfaceImpl);
+    private extern(C++) @nogc static int height(SurfaceImpl);
     int height() @nogc {return height(impl);}
 
     private SurfaceImpl impl() @nogc
@@ -114,7 +114,7 @@ struct LinearGradient
 
     alias gradient this;
 
-    this(Point[2] p, Color[] c, float[] o)
+    this(Point[2] p, Color[] c, float[] o) @nogc
     {
         pts = p;
         color = c;
@@ -130,10 +130,11 @@ struct RadialGradient
 
     alias gradient this;
 
-    this(Point p, float r, Color[] c, float[] o)
+    this(Point p, float r, Color[] c, float[] o) @nogc
     {
-        pts = p;
-        color = c;
+        center = p;
+        radius = r;
+        color  = c;
         offset = o;
     }
 }
@@ -145,23 +146,41 @@ struct Canvas
     ///////////////////////////////////////////////////////////////////////////////////
     // State
 
-    void beginPath(){m_builder.reset();}
-    void clip(){clip(m_builder.path);}
-    void fill(){fill(m_builder.path);}
-    void stroke(){stroke(m_builder.path);}
+    void beginPath() @nogc {m_builder.reset();}
 
-    private extern(C++) static Rect cpp_clip_extent(StateCanvas*); 
-    Rect clip_extent(){return clip_extent(impl);}
+    private extern(C++) @nogc static void cpp_clip(StateCanvas*, const ref Path);
+    void clip(in Path p) @nogc
+    {
+        cpp_clip(impl, p);
+    }
+    void clip() @nogc {clip(m_builder.path);}
+    
+    private extern(C++) @nogc static void cpp_fill(StateCanvas*, const ref Path);
+    void fill(in Path p) @nogc
+    {
+        cpp_fill(impl, p);
+    }
+    void fill() @nogc {fill(m_builder.path);}
+
+    private extern(C++) @nogc static void cpp_stroke(StateCanvas*, const ref Path);
+    void stroke(in Path p) @nogc
+    {
+        cpp_stroke(impl, p);
+    }
+    void stroke() @nogc {stroke(m_builder.path);}
+
+    private extern(C++) @nogc static Rect cpp_clip_extent(StateCanvas*); 
+    Rect clip_extent() @nogc {return cpp_clip_extent(impl);}
 
     ///////////////////////////////////////////////////////////////////////////////////
     // Styles
 
-    private extern(C++) static void cpp_fill_linear(StateCanvas* h, 
+    private extern(C++) @nogc static void cpp_fill_linear(StateCanvas* h, 
                                                 const(Point)* pts, 
                                                 const(Color)* colors, 
                                                 const(float)* offsets, 
                                                 size_t count);
-    @property void fill_style(in LinearGradient gr)
+    @property void fill_style(in LinearGradient gr) @nogc
     {
         assert(gr.offset.length == 0 || 
             gr.color.length == gr.offset.length, "Gradient offsets must match colors count");
@@ -176,12 +195,12 @@ struct Canvas
         );
     }
 
-    private extern(C++) static void cpp_stroke_linear(StateCanvas* h, 
+    private extern(C++) @nogc static void cpp_stroke_linear(StateCanvas* h, 
                                                 const(Point)* pts, 
                                                 const(Color)* colors, 
                                                 const(float)* offsets, 
                                                 size_t count);
-    @property void stroke_style(in LinearGradient gr)
+    @property void stroke_style(in LinearGradient gr) @nogc
     {
         assert(gr.offset.length == 0 || 
             gr.color.length == gr.offset.length, "Gradient offsets must match colors count");
@@ -195,38 +214,38 @@ struct Canvas
         );
     }
 
-    private extern(C++) static void cpp_fill_radial(StateCanvas* h, 
+    private extern(C++) @nogc static void cpp_fill_radial(StateCanvas* h, 
                                                 const(Point) pts, float radius,
                                                 const(Color)* colors, 
                                                 const(float)* offsets, 
                                                 size_t count);
-    @property void fill_style(in RadialGradient gr)
+    @property void fill_style(in RadialGradient gr) @nogc
     {
         assert(gr.offset.length == 0 || 
             gr.color.length == gr.offset.length, "Gradient offsets must match colors count");
 
         cpp_fill_radial(
             this.impl, 
-            gr.pts, gr.radius,
+            gr.center, gr.radius,
             gr.color.ptr, 
             gr.offset.length ? gr.offset.ptr : null, 
             gr.color.length
         );
     }
 
-    private extern(C++) static void cpp_stroke_radial(StateCanvas* h, 
+    private extern(C++) @nogc static void cpp_stroke_radial(StateCanvas* h, 
                                                 const(Point) pts, float radius,
                                                 const(Color)* colors, 
                                                 const(float)* offsets, 
                                                 size_t count);
-    @property void stroke_style(in RadialGradient gr)
+    @property void stroke_style(in RadialGradient gr) @nogc
     {
         assert(gr.offset.length == 0 || 
             gr.color.length == gr.offset.length, "Gradient offsets must match colors count");
 
         cpp_stroke_radial(
             this.impl, 
-            gr.pts, gr.radius,
+            gr.center, gr.radius,
             gr.color.ptr, 
             gr.offset.length ? gr.offset.ptr : null, 
             gr.color.length
@@ -238,7 +257,7 @@ struct Canvas
 private: 
     PathBuilderInternal m_builder;
 
-    this(CanvasImpl state, PathBuilderImpl path_builder)
+    this(CanvasImpl state, PathBuilderImpl path_builder) @nogc
     {
         m_impl = state;
         m_builder = PathBuilderInternal(path_builder);

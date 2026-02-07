@@ -7,12 +7,12 @@ struct PathBuilder;
 struct SkPath
 {
     // Конструктор копирования (современный D)
-    this(ref return scope inout typeof(this) src) inout 
+    this(ref return scope inout typeof(this) src) inout @nogc
     {
         sk_path_copy(cast(SkPath*)&this, cast(const SkPath*)&src);
     }
 
-    ~this() 
+    ~this() @nogc
     {
         sk_path_destruct(&this);
     }

@@ -1,7 +1,9 @@
-module easel.skia.path;
+module easel.path;
 
 import easel.rect;
 //import easel.circle;
+
+import easel.skia.sdk;
 
 enum FillRule: ubyte
 {
@@ -15,30 +17,45 @@ enum FillRule: ubyte
 
 struct PathBuilder
 {
-    this(FillRule rule)
+    this(FillRule rule) @nogc
     {
         self = PathBuilderInternal(cpp_make_builder(rule));
     }
 
-    ~this(){cpp_delete_builder(self);}
+    ~this() @nogc {cpp_delete_builder(self.impl);}
 
     alias self this;
     @disable this(this);
 
-    private PathBuilderInternal self = 
-        PathBuilderInternal(cpp_make_builder(FillRule.kDefault));
+private:
+    PathBuilderInternal self;
+
+    this(PathBuilderImpl impl) @nogc
+    {
+        self = PathBuilderInternal(impl);
+    }
+}
+
+PathBuilder makePathBuilder() @nogc
+{
+    return PathBuilder(cpp_make_builder(FillRule.kDefault));
+}
+
+private extern(C++) @nogc {
+    PathBuilderImpl cpp_make_builder(ubyte);
+    void cpp_delete_builder(PathBuilderImpl);
 }
 
 package struct PathBuilderInternal
 {
-    this(PathBuilderImpl impl){m_path_builder = impl;}
+    this(PathBuilderImpl impl) @nogc {m_path_builder = impl;}
 
     bool point_in_path(Point p)
     {return path.includes(p.x, p.y);}
     
     //Rect    bounds() const;
 
-    private extern(C++) static Path cpp_builder_snapshot(PathBuilderImpl);
+    private extern(C++) @nogc static Path cpp_builder_snapshot(PathBuilderImpl);
     ref Path path() nothrow @nogc
     {
         if (isDirty){ 
@@ -49,7 +66,7 @@ package struct PathBuilderInternal
         return m_path;
     }
 
-    private extern(C++) static Path cpp_builder_detach(PathBuilderImpl);
+    private extern(C++) @nogc static Path cpp_builder_detach(PathBuilderImpl);
     Path pathDetach() nothrow @nogc
     {
         isDirty = true;
@@ -57,7 +74,7 @@ package struct PathBuilderInternal
         return cpp_builder_detach(impl);
     }
 
-    private extern(C++) static void cpp_builder_reset(PathBuilderImpl);
+    private extern(C++) @nogc static void cpp_builder_reset(PathBuilderImpl);
     void reset() @nogc
     {
         cpp_builder_reset(impl);

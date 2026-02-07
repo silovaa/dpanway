@@ -175,7 +175,6 @@ int height(StateSurface *self)
    return self->m_surface->height();
 }
 
-
 StateCanvas::StateCanvas():
    _canvas(nullptr)
 {
