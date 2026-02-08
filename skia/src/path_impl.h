@@ -3,7 +3,6 @@
 #include <SkPath.h>
 #include <SkPathBuilder.h>
 #include <SkPoint.h>
-//#include <include/effects/SkGradient.h>
 
 extern "C++"{
 void sk_path_copy(SkPath* dst, const SkPath* src) 

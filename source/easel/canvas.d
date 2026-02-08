@@ -5,7 +5,9 @@ import easel.affine;
 import easel.color;
 import easel.path;
 
-import easel.skia.sdk;
+import easel.cpp_bridge;
+
+alias Surface = easel.cpp_bridge.Surface;
 
 // extern(C++) struct CanvasPtr
 // {
@@ -143,11 +145,10 @@ struct Canvas
     this(Surface surf) @nogc
     {
         auto ptr = surf.cunvas;
-        m_impl = ptr.state;
+        m_canvas_api.impl = ptr.state;
         m_builder = PathBuilderInternal(ptr.path_builder);
     }
 
-    alias m_builder this;
     alias m_canvas_api this;
 
     ///////////////////////////////////////////////////////////////////////////////////
@@ -280,7 +281,18 @@ struct Canvas
     @property void globalCompositeOp(Composite_op op) @nogc
     { global_composite_op(cast(int) op);}
 
-    //mixin CanvasApi!CanvasImpl;
+    template opDispatch(string name) 
+    {
+        // Проверяем во время компиляции, есть ли такой метод в PathBuilder
+        static if (__traits(hasMember, PathBuilder, name)) {
+            auto opDispatch(Args...)(Args args) {
+                return __traits(getMember, m_builder, name)(args);
+            }
+        } else {
+            // Если метода нет ни в Canvas, ни в PathBuilder — выдаем ошибку компиляции
+            static assert(0, "Метод " ~ name ~ " не найден в Canvas или PathBuilder");
+        }
+    }
 
 private: 
     PathBuilderInternal m_builder;

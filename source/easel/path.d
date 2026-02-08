@@ -3,7 +3,7 @@ module easel.path;
 import easel.rect;
 //import easel.circle;
 
-import easel.skia.sdk;
+import easel.cpp_bridge;
 
 enum FillRule: ubyte
 {

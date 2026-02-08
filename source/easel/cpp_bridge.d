@@ -119,7 +119,7 @@ mixin template Impl(ImplType) {
     }
 
     @property @nogc nothrow
-    private void impl(ImplType h) {
+    package void impl(ImplType h) {
         m_impl = h;
     }
 }

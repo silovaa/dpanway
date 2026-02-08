@@ -119,7 +119,7 @@ struct Surface
       auto ctx = context();
       if (!ctx) return false;
 
-      if (!impl) self = new StateSurface;
+      if (!impl) impl = new StateSurface;
 
       GLint fboId;
       glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fboId); // Получаем ID от EGL
@@ -179,7 +179,7 @@ struct Surface
    {
       return impl->m_surface->height();
    }
-}
+};
 
 struct CppCanvas
 {
@@ -407,7 +407,7 @@ struct CppCanvas
    {
       impl->_canvas->drawRoundRect(r, radius, radius, impl->current()->_stroke_paint);
    }
-}
+};
 
 
 StateCanvas::StateCanvas():
