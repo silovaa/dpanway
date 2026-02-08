@@ -97,12 +97,17 @@ extern(C++){
         void quadraticCurveTo(Point, Point);
         void bezierCurveTo(Point, Point, Point);
 
+        void arc(Point, float, float, float, bool);
+
         void addRect(const ref Rect);
         void addRoundRect(const ref Rect, float);
         void addCircle(Point, float);
 
     private:
         void fill_type(int);
+        Path snapshot();
+        Path detach();
+        void reset();
     }
 }
 
