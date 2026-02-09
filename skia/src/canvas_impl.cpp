@@ -103,7 +103,7 @@ struct StateSurface
 };
 
 //// Public structs //////////////////////////////////////////////////////////////
-
+extern "C++" {
 struct CanvasPtr
 {
    StateCanvas*     state;
@@ -114,72 +114,79 @@ struct Surface
 {
    StateSurface *impl = nullptr;
 
-   bool setFromFramebuffer(int width, int height, int sample, int stencil)
-   {
-      auto ctx = context();
-      if (!ctx) return false;
-
-      if (!impl) impl = new StateSurface;
-
-      GLint fboId;
-      glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fboId); // Получаем ID от EGL
-
-      GrGLFramebufferInfo fbInfo;
-      fbInfo.fFBOID = (GrGLuint)fboId;
-      fbInfo.fFormat = GL_RGBA8; // Формат должен совпадать с конфигом EGL
-
-      GrBackendRenderTarget backendRT = GrBackendRenderTargets::MakeGL(
-         width, height, 
-         sample, // sampleCount (MSAA)
-         stencil, // stencilBits
-         fbInfo
-      );
-
-      impl->m_surface = SkSurfaces::WrapBackendRenderTarget(
-         ctx,
-         backendRT,
-         kBottomLeft_GrSurfaceOrigin, // Стандарт для OpenGL/EGL
-         kRGBA_8888_SkColorType,      // Цветовой тип
-         nullptr,                     // ColorSpace (например, SkColorSpace::MakeSRGB())
-         nullptr                      // SurfaceProps
-      );
-
-      if (impl->m_surface){
-         impl->m_state._canvas = impl->m_surface->getCanvas();
-         return true;
-      }
-
-      delete impl;
-      return false;
-   }
-
-   void destroy()
-   {
-      delete impl;
-      dContext.reset();
-      glInterface.reset();
-   }
-
-   CanvasPtr canvas()
-   {
-      return {&(impl->m_state), &(impl->m_path_builder)};
-   }
-
-   void flush()
-   {
-      context()->flushAndSubmit(impl->m_surface.get());
-   }
-
-   int width() 
-   {
-      return impl->m_surface->width();
-   }
-
-   int height() 
-   {
-      return impl->m_surface->height();
-   }
+   bool setFromFramebuffer(int width, int height, int sample, int stencil);
+   void destroy();
+   CanvasPtr canvas();
+   void flush();
+   int width();
+   int height();
 };
+
+bool Surface::setFromFramebuffer(int width, int height, int sample, int stencil)
+{
+   auto ctx = context();
+   if (!ctx) return false;
+
+   if (!impl) impl = new StateSurface;
+
+   GLint fboId;
+   glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fboId); // Получаем ID от EGL
+
+   GrGLFramebufferInfo fbInfo;
+   fbInfo.fFBOID = (GrGLuint)fboId;
+   fbInfo.fFormat = GL_RGBA8; // Формат должен совпадать с конфигом EGL
+
+   GrBackendRenderTarget backendRT = GrBackendRenderTargets::MakeGL(
+      width, height, 
+      sample, // sampleCount (MSAA)
+      stencil, // stencilBits
+      fbInfo
+   );
+
+   impl->m_surface = SkSurfaces::WrapBackendRenderTarget(
+      ctx,
+      backendRT,
+      kBottomLeft_GrSurfaceOrigin, // Стандарт для OpenGL/EGL
+      kRGBA_8888_SkColorType,      // Цветовой тип
+      nullptr,                     // ColorSpace (например, SkColorSpace::MakeSRGB())
+      nullptr                      // SurfaceProps
+   );
+
+   if (impl->m_surface){
+      impl->m_state._canvas = impl->m_surface->getCanvas();
+      return true;
+   }
+
+   delete impl;
+   return false;
+}
+
+void Surface::destroy()
+{
+   delete impl;
+   dContext.reset();
+   glInterface.reset(); 
+}
+
+CanvasPtr Surface::canvas()
+{
+   return {&(impl->m_state), &(impl->m_path_builder)};
+}
+
+void Surface::flush()
+{
+   context()->flushAndSubmit(impl->m_surface.get());
+}
+
+int Surface::width() 
+{
+   return impl->m_surface->width();
+}
+
+int Surface::height() 
+{
+   return impl->m_surface->height();
+}
 
 struct CppCanvas
 {
@@ -188,174 +195,50 @@ struct CppCanvas
    ///////////////////////////////////////////////////////////////////////////////////
    // State
 
-   void save()
-   {
-      impl->_canvas->save();
-      impl->_stack.push(std::make_unique<StateCanvas::state_info>(*(impl->current())));
-   }
+   void save();
+   void restore();
+   void fill(const SkPath &p);
+   void stroke(const SkPath &p);
+   void clip(const SkPath &p);
 
-   void restore()
-   {
-      impl->_canvas->restore();
-      if (impl->_stack.size())
-         impl->_stack.pop();
-   }
-
-   void fill(const SkPath &p)
-   {
-      impl->_canvas->drawPath(p, impl->current()->_fill_paint);
-   }
-
-   void stroke(const SkPath &p)
-   {
-      impl->_canvas->drawPath(p, impl->current()->_stroke_paint);
-   }
-
-   void clip(const SkPath &p)
-   {
-      impl->_canvas->clipPath(p, true);
-   }
-
-   //struct Rect  {float l, t, r, b;};
-   //struct Point {float x, y;};
-
-   SkRect clipExtent()
-   {
-      SkRect r;
-      impl->_canvas->getLocalClipBounds(&r);
-      return r;
-   }
+   SkRect clipExtent();
 
    ///////////////////////////////////////////////////////////////////////////////////
    // Transforms
 
-   void translate(float x, float y){ impl->_canvas->translate(x, y);}
-   void rotate(float rad){impl->_canvas->rotate(rad * (180.0/std::numbers::pi));}
-   void scale(float x, float y){ impl->_canvas->scale(x, y);}
-   void skew(double sx, double sy){impl->_canvas->skew(sx, sy);}
+   void translate(float x, float y);
+   void rotate(float rad);
+   void scale(float x, float y);
+   void skew(double sx, double sy);
 
-   AffineTransform transform() 
-   {
-      auto mat = impl->_canvas->getLocalToDeviceAs3x3();
-      SkScalar sc[6];
-      (void) mat.asAffine(sc);
-      return {sc[0], sc[1], sc[2], sc[3], sc[4], sc[5]};
-   }
-
-   void transform(AffineTransform const& mat)
-   {
-      SkMatrix skMat;
-
-      SkScalar sc[6] = {
-         static_cast<SkScalar>(mat.a),
-         static_cast<SkScalar>(mat.b),
-         static_cast<SkScalar>(mat.c),
-         static_cast<SkScalar>(mat.d),
-         static_cast<SkScalar>(mat.tx),
-         static_cast<SkScalar>(mat.ty)
-      };
-      skMat.setAffine(sc);
-      impl->_canvas->setMatrix(skMat);
-   }
+   AffineTransform transform();
+   void transform(AffineTransform const& mat);
 
    ///////////////////////////////////////////////////////////////////////////////////
    // Styles
 
-   void fill_style(const SkColor4f& c)
-   {
-      impl->current()->_fill_paint.setColor4f(c, nullptr);
-      impl->current()->_fill_paint.setShader(nullptr);
-   }
-
-   void stroke_style(const SkColor4f& c)
-   {
-      impl->current()->_stroke_paint.setColor4f(c, nullptr);
-      impl->current()->_stroke_paint.setShader(nullptr);
-   }
-
+   void fill_style(const SkColor4f& c);
+   void stroke_style(const SkColor4f& c);
    void fill_linear(const SkPoint pts[2], 
                            const SkColor4f colors[], 
                            const float offsets[], 
-                           size_t count)
-   {
-      SkGradient::Colors colorData(
-         {colors, count}, 
-         offsets ? SkSpan{offsets, count} : SkSpan<const float>{}, 
-         SkTileMode::kClamp,
-         nullptr // ColorSpace (nullptr = sRGB)
-      );
-
-      impl->current()->_fill_paint.setShader(
-         SkShaders::LinearGradient(pts, SkGradient(colorData, {}))
-      );
-   }
-
+                           size_t count);
    void stroke_linear(const SkPoint pts[2], 
                            const SkColor4f colors[], 
                            const float offsets[], 
-                           size_t count)
-   {
-      SkGradient::Colors colorData(
-         {colors, count},
-         offsets ? SkSpan{offsets, count} : SkSpan<const float>{},
-         SkTileMode::kClamp);
-
-      impl->current()->_stroke_paint.setShader(
-         SkShaders::LinearGradient(pts, SkGradient(colorData, {}))
-      );
-   }
-
+                           size_t count);
    void fill_radial(const SkPoint pts, float radius, 
                            const SkColor4f colors[], 
                            const float offsets[], 
-                           size_t count)
-   {
-      SkGradient::Colors colorData(
-         {colors, count},
-         offsets ? SkSpan{offsets, count} : SkSpan<const float>{},
-         SkTileMode::kClamp);
-
-      impl->current()->_fill_paint.setShader(
-         SkShaders::RadialGradient(pts, radius, SkGradient(colorData, {}))
-      );
-   }
-
+                           size_t count);
    void stroke_radial(const SkPoint pts, float radius, 
                            const SkColor4f colors[], 
                            const float offsets[], 
-                           size_t count)
-   {
-      SkGradient::Colors colorData(
-         {colors, count},
-         offsets ? SkSpan{offsets, count} : SkSpan<const float>{},
-         SkTileMode::kClamp);
-
-      impl->current()->_stroke_paint.setShader(
-         SkShaders::RadialGradient(pts, radius, SkGradient(colorData, {}))
-      );
-   }
-
-   void line_width(float w)
-   { 
-      impl->current()->_stroke_paint.setStrokeWidth(w);
-   }
-
-   void line_cap(int cap)
-   {
-      impl->current()->_stroke_paint.setStrokeCap(
-                           static_cast<SkPaint::Cap>(cap));
-   }
-
-   void line_join(int join)
-   {
-      impl->current()->_stroke_paint.setStrokeJoin(
-                           static_cast<SkPaint::Join>(join));
-   }
-
-   void miter_limit(float limit)
-   {
-      impl->current()->_stroke_paint.setStrokeMiter(limit);
-   }
+                           size_t count);
+   void line_width(float w);
+   void line_cap(int cap);
+   void line_join(int join);
+   void miter_limit(float limit);
 
    // void canvas::shadow_style(point offset, float blur, color c)
    // {
@@ -377,37 +260,209 @@ struct CppCanvas
    //    _state->fill_paint().setImageFilter(shadow);
    // }
 
-   void global_composite_op(int mode)
-   {
-      auto mode_ = static_cast<SkBlendMode>(mode);
-      
-      impl->current()->_stroke_paint.setBlendMode(mode_);
-      impl->current()->_fill_paint.setBlendMode(mode_);
-   }
+   void global_composite_op(int mode);
 
    ///////////////////////////////////////////////////////////////////////////////////
    // Rectangles
 
-   void fillRect(const SkRect& r)
-   { 
-      impl->_canvas->drawRect(r, impl->current()->_fill_paint);
-   }
-
-   void fillRoundRect(const SkRect& r, float radius)
-   {
-      impl->_canvas->drawRoundRect(r, radius, radius, impl->current()->_fill_paint);
-   }
-
-   void strokeRect(const SkRect& r)
-   {
-      impl->_canvas->drawRect(r, impl->current()->_stroke_paint);
-   }
-
-   void strokeRoundRect(const SkRect& r, float radius)
-   {
-      impl->_canvas->drawRoundRect(r, radius, radius, impl->current()->_stroke_paint);
-   }
+   void fillRect(const SkRect& r);
+   void fillRoundRect(const SkRect& r, float radius);
+   void strokeRect(const SkRect& r);
+   void strokeRoundRect(const SkRect& r, float radius);
 };
+
+void CppCanvas::save()
+{
+   impl->_canvas->save();
+   impl->_stack.push(std::make_unique<StateCanvas::state_info>(*(impl->current())));
+}
+
+void CppCanvas::restore()
+{
+   impl->_canvas->restore();
+   if (impl->_stack.size())
+      impl->_stack.pop();
+}
+
+void CppCanvas::fill(const SkPath &p)
+{
+   impl->_canvas->drawPath(p, impl->current()->_fill_paint);
+}
+
+void CppCanvas::stroke(const SkPath &p)
+{
+   impl->_canvas->drawPath(p, impl->current()->_stroke_paint);
+}
+
+void CppCanvas::clip(const SkPath &p)
+{
+   impl->_canvas->clipPath(p, true);
+}
+
+//struct Rect  {float l, t, r, b;};
+//struct Point {float x, y;};
+
+SkRect CppCanvas::clipExtent()
+{
+   SkRect r;
+   impl->_canvas->getLocalClipBounds(&r);
+   return r;
+}
+
+void CppCanvas::translate(float x, float y){ impl->_canvas->translate(x, y);}
+void CppCanvas::rotate(float rad){impl->_canvas->rotate(rad * (180.0/std::numbers::pi));}
+void CppCanvas::scale(float x, float y){ impl->_canvas->scale(x, y);}
+void CppCanvas::skew(double sx, double sy){impl->_canvas->skew(sx, sy);}
+
+AffineTransform CppCanvas::transform() 
+{
+   auto mat = impl->_canvas->getLocalToDeviceAs3x3();
+   SkScalar sc[6];
+   (void) mat.asAffine(sc);
+   return {sc[0], sc[1], sc[2], sc[3], sc[4], sc[5]};
+}
+
+void CppCanvas::transform(AffineTransform const& mat)
+{
+   SkMatrix skMat;
+
+   SkScalar sc[6] = {
+      static_cast<SkScalar>(mat.a),
+      static_cast<SkScalar>(mat.b),
+      static_cast<SkScalar>(mat.c),
+      static_cast<SkScalar>(mat.d),
+      static_cast<SkScalar>(mat.tx),
+      static_cast<SkScalar>(mat.ty)
+   };
+   skMat.setAffine(sc);
+   impl->_canvas->setMatrix(skMat);
+}
+
+void CppCanvas::fill_style(const SkColor4f& c)
+{
+   impl->current()->_fill_paint.setColor4f(c, nullptr);
+   impl->current()->_fill_paint.setShader(nullptr);
+}
+
+void CppCanvas::stroke_style(const SkColor4f& c)
+{
+   impl->current()->_stroke_paint.setColor4f(c, nullptr);
+   impl->current()->_stroke_paint.setShader(nullptr);
+}
+
+void CppCanvas::fill_linear(const SkPoint pts[2], 
+                           const SkColor4f colors[], 
+                           const float offsets[], 
+                           size_t count)
+{
+   SkGradient::Colors colorData(
+      {colors, count}, 
+      offsets ? SkSpan{offsets, count} : SkSpan<const float>{}, 
+      SkTileMode::kClamp,
+      nullptr // ColorSpace (nullptr = sRGB)
+   );
+
+   impl->current()->_fill_paint.setShader(
+      SkShaders::LinearGradient(pts, SkGradient(colorData, {}))
+   );
+}
+
+void CppCanvas::stroke_linear(const SkPoint pts[2], 
+                        const SkColor4f colors[], 
+                        const float offsets[], 
+                        size_t count)
+{
+   SkGradient::Colors colorData(
+      {colors, count},
+      offsets ? SkSpan{offsets, count} : SkSpan<const float>{},
+      SkTileMode::kClamp);
+
+   impl->current()->_stroke_paint.setShader(
+      SkShaders::LinearGradient(pts, SkGradient(colorData, {}))
+   );
+}
+
+void CppCanvas::fill_radial(const SkPoint pts, float radius, 
+                        const SkColor4f colors[], 
+                        const float offsets[], 
+                        size_t count)
+{
+   SkGradient::Colors colorData(
+      {colors, count},
+      offsets ? SkSpan{offsets, count} : SkSpan<const float>{},
+      SkTileMode::kClamp);
+
+   impl->current()->_fill_paint.setShader(
+      SkShaders::RadialGradient(pts, radius, SkGradient(colorData, {}))
+   );
+}
+
+void CppCanvas::stroke_radial(const SkPoint pts, float radius, 
+                        const SkColor4f colors[], 
+                        const float offsets[], 
+                        size_t count)
+{
+   SkGradient::Colors colorData(
+      {colors, count},
+      offsets ? SkSpan{offsets, count} : SkSpan<const float>{},
+      SkTileMode::kClamp);
+
+   impl->current()->_stroke_paint.setShader(
+      SkShaders::RadialGradient(pts, radius, SkGradient(colorData, {}))
+   );
+}
+
+void CppCanvas::line_width(float w)
+{ 
+   impl->current()->_stroke_paint.setStrokeWidth(w);
+}
+
+void CppCanvas::line_cap(int cap)
+{
+   impl->current()->_stroke_paint.setStrokeCap(
+                        static_cast<SkPaint::Cap>(cap));
+}
+
+void CppCanvas::line_join(int join)
+{
+   impl->current()->_stroke_paint.setStrokeJoin(
+                        static_cast<SkPaint::Join>(join));
+}
+
+void CppCanvas::miter_limit(float limit)
+{
+   impl->current()->_stroke_paint.setStrokeMiter(limit);
+}
+
+void CppCanvas::global_composite_op(int mode)
+{
+   auto mode_ = static_cast<SkBlendMode>(mode);
+   
+   impl->current()->_stroke_paint.setBlendMode(mode_);
+   impl->current()->_fill_paint.setBlendMode(mode_);
+}
+
+void CppCanvas::fillRect(const SkRect& r)
+{ 
+   impl->_canvas->drawRect(r, impl->current()->_fill_paint);
+}
+
+void CppCanvas::fillRoundRect(const SkRect& r, float radius)
+{
+   impl->_canvas->drawRoundRect(r, radius, radius, impl->current()->_fill_paint);
+}
+
+void CppCanvas::strokeRect(const SkRect& r)
+{
+   impl->_canvas->drawRect(r, impl->current()->_stroke_paint);
+}
+
+void CppCanvas::strokeRoundRect(const SkRect& r, float radius)
+{
+   impl->_canvas->drawRoundRect(r, radius, radius, impl->current()->_stroke_paint);
+}
+
+}
 
 
 StateCanvas::StateCanvas():

@@ -9,7 +9,7 @@ subConfiguration "wayland" "egl"
 
 preBuildCommands "clang++ -c skia/src/canvas_impl.cpp -o canvas_impl.o -std=c++20 -fPIC -I./skia -I./skia/include/core"
 sourceFiles "canvas_impl.o"
-includePaths "skia/include" "skia/include/core"
+//includePaths "skia/include" "skia/include/core"
 //cxxflags "-std=c++20" "-I./skia/include" "-I./skia/include/core"
 
 // Линковка (путь к библиотеке и сама библиотека)
