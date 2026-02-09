@@ -5,6 +5,8 @@ import wayland;
 
 import easel.canvas : EaselSurface = Surface, Canvas;
 import easel.color;
+import easel.rect;
+
 
 class Window: InputLayer
 {
@@ -65,11 +67,12 @@ writeln("Window Dtor");
     {
         if (start){
             m_context.makeCurrent();
-            m_surface.fromFramebuffer(ww, hh);
-            draw(m_surface.canvas);
-            m_surface.flush();
-            m_context.swapBuffers();
-            start = false;
+            if (m_surface.setFromFramebuffer(ww, hh)){
+                draw(Canvas(m_surface));
+                m_surface.flush();
+                m_context.swapBuffers();
+                start = false;
+            }
         }
     }
 
@@ -103,8 +106,8 @@ writeln("scale ", factor);
     void draw(Canvas cnv) 
     {
         auto bkd = rgb(44, 42, 45);
-        cnv.add_rect(0, 0, cast(float)ww, cast(float)hh);
-        cnv.fill_style(bkd.red, bkd.green, bkd.blue, bkd.alpha);
+        cnv.addRect(Rect(0, 0, cast(float)ww, cast(float)hh));
+        cnv.fillStyle = bkd;//(bkd.red, bkd.green, bkd.blue, bkd.alpha);
         cnv.fill();
     }
   

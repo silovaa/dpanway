@@ -12,13 +12,13 @@ struct SkPath
         sk_path_copy(cast(SkPath*)&this, cast(const SkPath*)&src);
     }
 
-    ~this() @nogc
+    ~this() @nogc nothrow
     {
         sk_path_destruct(&this);
     }
 
     bool includes(float x, float y) const;
-    void reset();
+    void reset() @nogc;
 
 private:
     void* data;

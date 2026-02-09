@@ -4,6 +4,7 @@ import easel.rect;
 //import easel.circle;
 
 import easel.cpp_bridge;
+import easel.skia.sdk;
 
 enum FillRule: ubyte
 {
@@ -48,7 +49,7 @@ private extern(C++) @nogc {
 
 package struct PathBuilderInternal
 {
-    this(PathBuilderImpl impl) @nogc 
+    this(PathBuilderImpl impl) nothrow @nogc 
     {
         m_path_builder.impl = impl;
     }

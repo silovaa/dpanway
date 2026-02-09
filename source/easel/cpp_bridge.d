@@ -57,7 +57,7 @@ extern(C++){
         void strokeRect(const ref Rect);
         void strokeRoundRect(const ref Rect, float);
 
-    private @nogc:
+    package @nogc:
         ///////////////////////////////////////////////////////////////////////////////////
         // Styles (property for override)
 
@@ -87,7 +87,7 @@ extern(C++){
     {
         mixin Impl!PathBuilderImpl;
 
-    @nogc:
+    @nogc nothrow:
         bool isEmpty();
         void close();
         
@@ -103,7 +103,7 @@ extern(C++){
         void addRoundRect(const ref Rect, float);
         void addCircle(Point, float);
 
-    private:
+    package:
         void fill_type(int);
         Path snapshot();
         Path detach();
@@ -118,7 +118,7 @@ mixin template Impl(ImplType) {
 
     // Геттер с проверкой
     @property @nogc nothrow
-    private ImplType impl() {
+    package ImplType impl() {
         assert(m_impl !is null, "Canvas implementation (m_impl) is null");
         return m_impl;
     }

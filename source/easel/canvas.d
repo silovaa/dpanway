@@ -6,6 +6,7 @@ import easel.color;
 import easel.path;
 
 import easel.cpp_bridge;
+import easel.skia.sdk;
 
 alias Surface = easel.cpp_bridge.Surface;
 
@@ -144,7 +145,7 @@ struct Canvas
 {
     this(Surface surf) @nogc
     {
-        auto ptr = surf.cunvas;
+        auto ptr = surf.canvas;
         m_canvas_api.impl = ptr.state;
         m_builder = PathBuilderInternal(ptr.path_builder);
     }
@@ -161,21 +162,21 @@ struct Canvas
     // {
     //     cpp_clip(impl, p);
     // }
-    void clip() @nogc {clip(m_builder.path);}
+    void clip() @nogc {m_canvas_api.clip(m_builder.path);}
     
     // private extern(C++) @nogc static void cpp_fill(StateCanvas*, const ref Path);
     // void fill(in Path p) @nogc
     // {
     //     cpp_fill(impl, p);
     // }
-    void fill() @nogc {fill(m_builder.path);}
+    void fill() @nogc {m_canvas_api.fill(m_builder.path);}
 
     // private extern(C++) @nogc static void cpp_stroke(StateCanvas*, const ref Path);
     // void stroke(in Path p) @nogc
     // {
     //     cpp_stroke(impl, p);
     // }
-    void stroke() @nogc {stroke(m_builder.path);}
+    void stroke() @nogc {m_canvas_api.stroke(m_builder.path);}
 
     // private extern(C++) @nogc static Rect cpp_clip_extent(StateCanvas*); 
     // Rect clip_extent() @nogc {return cpp_clip_extent(impl);}
@@ -195,7 +196,6 @@ struct Canvas
 
         // Если offset пуст, .ptr может вернуть мусор, поэтому используем тернарный оператор
         fill_linear(
-            this.impl, 
             gr.pts.ptr, 
             gr.color.ptr, 
             gr.offset.length ? gr.offset.ptr : null, 
@@ -213,8 +213,7 @@ struct Canvas
         assert(gr.offset.length == 0 || 
             gr.color.length == gr.offset.length, "Gradient offsets must match colors count");
 
-        stroke_linear(
-            this.impl, 
+        stroke_linear( 
             gr.pts.ptr, 
             gr.color.ptr, 
             gr.offset.length ? gr.offset.ptr : null, 
@@ -232,8 +231,7 @@ struct Canvas
         assert(gr.offset.length == 0 || 
             gr.color.length == gr.offset.length, "Gradient offsets must match colors count");
 
-        fill_radial(
-            this.impl, 
+        fill_radial( 
             gr.center, gr.radius,
             gr.color.ptr, 
             gr.offset.length ? gr.offset.ptr : null, 
@@ -251,8 +249,7 @@ struct Canvas
         assert(gr.offset.length == 0 || 
             gr.color.length == gr.offset.length, "Gradient offsets must match colors count");
 
-        stroke_radial(
-            this.impl, 
+        stroke_radial( 
             gr.center, gr.radius,
             gr.color.ptr, 
             gr.offset.length ? gr.offset.ptr : null, 
@@ -284,7 +281,7 @@ struct Canvas
     template opDispatch(string name) 
     {
         // Проверяем во время компиляции, есть ли такой метод в PathBuilder
-        static if (__traits(hasMember, PathBuilder, name)) {
+        static if (__traits(hasMember, PathBuilderInternal, name)) {
             auto opDispatch(Args...)(Args args) {
                 return __traits(getMember, m_builder, name)(args);
             }

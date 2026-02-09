@@ -25,4 +25,5 @@ build-aux/main.d
 dub.selections.json
 .vscode/
 panway
-*.a
+*.o
+libegl.a
