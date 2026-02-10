@@ -106,7 +106,8 @@ writeln("scale ", factor);
     void draw(Canvas cnv) 
     {
         auto bkd = rgb(44, 42, 45);
-        cnv.addRect(Rect(0, 0, cast(float)ww, cast(float)hh));
+        auto r = Rect(0, 0, ww, hh);
+        cnv.addRect(r);
         cnv.fillStyle = bkd;//(bkd.red, bkd.green, bkd.blue, bkd.alpha);
         cnv.fill();
     }

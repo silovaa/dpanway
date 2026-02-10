@@ -49,7 +49,9 @@ private extern(C++) @nogc {
 
 package struct PathBuilderInternal
 {
-    this(PathBuilderImpl impl) nothrow @nogc 
+nothrow @nogc:
+
+    this(PathBuilderImpl impl) 
     {
         m_path_builder.impl = impl;
     }
@@ -59,7 +61,7 @@ package struct PathBuilderInternal
     bool point_in_path(Point p)
     {return path.includes(p.x, p.y);}
     
-    ref Path path() nothrow @nogc
+    ref Path path() return @safe
     {
         if (isDirty){ 
             m_path = snapshot();
@@ -69,14 +71,14 @@ package struct PathBuilderInternal
         return m_path;
     }
 
-    Path pathDetach() nothrow @nogc
+    Path pathDetach()
     {
         isDirty = true;
 
         return detach();
     }
 
-    void reset() @nogc
+    void reset() 
     {
         m_path_builder.reset();
         m_path.reset();

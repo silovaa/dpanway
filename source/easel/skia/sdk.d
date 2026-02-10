@@ -1,5 +1,7 @@
 module easel.skia.sdk;
 
+extern (C++){
+
 struct StateCanvas;
 struct StateSurface;
 struct PathBuilder;
@@ -26,19 +28,36 @@ private:
     bool  fIsVolatile;
 } 
 
-private extern(C++) @nogc nothrow {
+private @nogc nothrow {
     void sk_path_copy(SkPath* dst, const(SkPath)* src);
     void sk_path_destruct(SkPath* path);
 }
 
-// Проверка на соответствие ABI (64-бит)
-static assert(SkPath.sizeof == 16); 
+struct SkRect
+{
+    float left = 0; //!< smaller x-axis bounds
+    float top  = 0; //!< smaller y-axis bounds
+    float right  = 0; //!< larger x-axis bounds
+    float bottom = 0; //!< larger y-axis bounds
+}
+
+struct SkPoint
+{
+    float x = 0, y = 0;
+}
+
+struct SkColor
+{
+    
+}
+
+}
 
 alias CanvasImpl  = StateCanvas*;
 alias SurfaceImpl = StateSurface*;
 alias PathBuilderImpl = PathBuilder*;
 alias Path = SkPath; 
-
+alias Rect = SkRect;
 
 
 // import std.traits : Parameters;

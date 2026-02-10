@@ -277,17 +277,15 @@ struct Canvas
 
     @property void globalCompositeOp(Composite_op op) @nogc
     { global_composite_op(cast(int) op);}
-
-    template opDispatch(string name) 
-    {
-        // Проверяем во время компиляции, есть ли такой метод в PathBuilder
+    
+    import std.functional : forward;
+    template opDispatch(string name) {
+        // Проверяем наличие метода в PathBuilder (включая методы PathBuilderCpp через его alias this)
         static if (__traits(hasMember, PathBuilderInternal, name)) {
-            auto opDispatch(Args...)(Args args) {
-                return __traits(getMember, m_builder, name)(args);
+            auto ref opDispatch(Args...)(auto ref Args args) {
+                // Используем forward для корректной передачи ref/const ref
+                return __traits(getMember, m_builder, name)(forward!args);
             }
-        } else {
-            // Если метода нет ни в Canvas, ни в PathBuilder — выдаем ошибку компиляции
-            static assert(0, "Метод " ~ name ~ " не найден в Canvas или PathBuilder");
         }
     }
 

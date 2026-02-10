@@ -2,8 +2,8 @@ module easel.cpp_bridge;
 
 import easel.skia.sdk;
 
-import easel.rect;
-import easel.color;
+//import easel.rect;
+//import easel.color;
 import easel.affine; 
 
 extern(C++){
