@@ -19,8 +19,8 @@ struct SkPath
         sk_path_destruct(&this);
     }
 
-    bool includes(float x, float y) const;
-    void reset() @nogc;
+    bool includes(float x, float y) const @nogc nothrow;
+    void reset() @nogc nothrow;
 
 private:
     void* data;
@@ -46,9 +46,12 @@ struct SkPoint
     float x = 0, y = 0;
 }
 
-struct SkColor
+struct SkColor4f
 {
-    
+    float red   = 0.0f;
+    float green = 0.0f;
+    float blue  = 0.0f;
+    float alpha = 0.0f;
 }
 
 }
@@ -58,6 +61,8 @@ alias SurfaceImpl = StateSurface*;
 alias PathBuilderImpl = PathBuilder*;
 alias Path = SkPath; 
 alias Rect = SkRect;
+alias Point = SkPoint;
+alias ColorImpl = SkColor4f;
 
 
 // import std.traits : Parameters;

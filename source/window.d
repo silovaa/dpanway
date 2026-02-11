@@ -3,9 +3,9 @@ module window;
 import std.stdio;
 import wayland;
 
-import easel.canvas : EaselSurface = Surface, Canvas;
+import easel.canvas : EaselSurface = Surface, Canvas, Rect, Point;
 import easel.color;
-import easel.rect;
+//import easel.rect;
 
 
 class Window: InputLayer

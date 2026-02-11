@@ -3,11 +3,15 @@ module easel.color;
 import std.algorithm : min;
 import std.stdint;
 
+import easel.skia.sdk: ColorImpl;
+
 struct Color {
-    float red   = 0.0f;
-    float green = 0.0f;
-    float blue  = 0.0f;
-    float alpha = 0.0f;
+    // float red   = 0.0f;
+    // float green = 0.0f;
+    // float blue  = 0.0f;
+    // float alpha = 0.0f;
+    ColorImpl impl;
+    alias impl this;
 
     @safe pure nothrow @nogc:
 

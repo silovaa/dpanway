@@ -1,14 +1,15 @@
 module easel.canvas;
 
-import easel.rect;
+//import easel.rect;
 import easel.affine;
 import easel.color;
 import easel.path;
 
 import easel.cpp_bridge;
 import easel.skia.sdk;
-
-alias Surface = easel.cpp_bridge.Surface;
+ 
+public import easel.cpp_bridge:Surface;
+public import easel.skia.sdk:Rect, Point;
 
 // extern(C++) struct CanvasPtr
 // {
@@ -37,7 +38,7 @@ alias Surface = easel.cpp_bridge.Surface;
 //     {
 //         auto ptr = get_canvas(impl);
 //         return Canvas(ptr.state, ptr.path_builder);
-//     }
+//     } 
 
 //     extern(C++) @nogc static void flush_and_submit(SurfaceImpl);
 //     void flush() @nogc {flush_and_submit(impl);}

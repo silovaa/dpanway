@@ -1,6 +1,6 @@
 module easel.path;
 
-import easel.rect;
+//import easel.rect;
 //import easel.circle;
 
 import easel.cpp_bridge;
@@ -61,7 +61,7 @@ nothrow @nogc:
     bool point_in_path(Point p)
     {return path.includes(p.x, p.y);}
     
-    ref Path path() return @safe
+    ref Path path() return //@safe
     {
         if (isDirty){ 
             m_path = snapshot();
