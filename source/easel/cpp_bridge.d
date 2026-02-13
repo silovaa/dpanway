@@ -3,7 +3,7 @@ module easel.cpp_bridge;
 import easel.skia.sdk;
 
 //import easel.rect;
-import easel.color;
+//import easel.color;
 import easel.affine; 
 
 extern(C++){
@@ -11,7 +11,8 @@ extern(C++){
     {
         mixin Impl!SurfaceImpl;
 
-        bool setFromFramebuffer(int width, int height, int sample = 4, int stencil = 8) @nogc;
+        int setFromFramebuffer(int width, int height, 
+                                int sample = 0, int stencil = 8) @nogc;
         void destroy() @nogc;
         CanvasPtr canvas() @nogc;
         void flush() @nogc;
@@ -57,24 +58,24 @@ extern(C++){
         void strokeRect(const ref Rect);
         void strokeRoundRect(const ref Rect, float);
 
-    package @nogc:
+    package @nogc: struct CppCanvas
         ///////////////////////////////////////////////////////////////////////////////////
         // Styles (property for override)
 
-        void fill_linear(const(Point)* pts, const(Color)* colors, 
+        void fill_linear(const(Point)* pts, const(ColorImpl)* colors, 
                             const(float)* offsets, size_t count);
-        void stroke_linear(const(Point)* pts, const(Color)* colors, 
+        void stroke_linear(const(Point)* pts, const(ColorImpl)* colors, 
                             const(float)* offsets, size_t count);
         void fill_radial(const(Point) pts, float radius,
-                            const(Color)* colors, 
+                            const(ColorImpl)* colors, 
                             const(float)* offsets, 
                             size_t count);
         void stroke_radial(const(Point) pts, float radius,
-                        const(Color)* colors, 
+                        const(ColorImpl)* colors, 
                         const(float)* offsets, 
                         size_t count);
-        void fill_style(const ref Color);
-        void stroke_style(const ref Color);
+        void fill_style(ref const(ColorImpl));
+        void stroke_style(const ref ColorImpl);
 
         void line_width(float);
         void line_cap(int);

@@ -198,7 +198,7 @@ struct Canvas
         // Если offset пуст, .ptr может вернуть мусор, поэтому используем тернарный оператор
         fill_linear(
             gr.pts.ptr, 
-            gr.color.ptr, 
+            cast(const(ColorImpl)*)gr.color.ptr, 
             gr.offset.length ? gr.offset.ptr : null, 
             gr.color.length
         );
@@ -216,7 +216,7 @@ struct Canvas
 
         stroke_linear( 
             gr.pts.ptr, 
-            gr.color.ptr, 
+            cast(const(ColorImpl)*)gr.color.ptr, 
             gr.offset.length ? gr.offset.ptr : null, 
             gr.color.length
         );
@@ -234,7 +234,7 @@ struct Canvas
 
         fill_radial( 
             gr.center, gr.radius,
-            gr.color.ptr, 
+            cast(const(ColorImpl)*)gr.color.ptr, 
             gr.offset.length ? gr.offset.ptr : null, 
             gr.color.length
         );
@@ -252,7 +252,7 @@ struct Canvas
 
         stroke_radial( 
             gr.center, gr.radius,
-            gr.color.ptr, 
+            cast(const(ColorImpl)*)gr.color.ptr, 
             gr.offset.length ? gr.offset.ptr : null, 
             gr.color.length
         );
@@ -280,14 +280,12 @@ struct Canvas
     { global_composite_op(cast(int) op);}
     
     import std.functional : forward;
-    template opDispatch(string name) {
-        // Проверяем наличие метода в PathBuilder (включая методы PathBuilderCpp через его alias this)
-        static if (__traits(hasMember, PathBuilderInternal, name)) {
-            auto ref opDispatch(Args...)(auto ref Args args) {
-                // Используем forward для корректной передачи ref/const ref
-                return __traits(getMember, m_builder, name)(forward!args);
-            }
-        }
+    auto ref opDispatch(string name, Args...)(auto ref Args args)
+    if (__traits(hasMember, PathBuilderInternal, name)) // Переносим проверку в constraint
+    {
+        import std.functional : forward;
+        // Используем mixin или getMember для вызова
+        return __traits(getMember, m_builder, name)(forward!args);
     }
 
 private: 

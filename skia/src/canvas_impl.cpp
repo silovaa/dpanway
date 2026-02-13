@@ -114,7 +114,7 @@ struct Surface
 {
    StateSurface *impl = nullptr;
 
-   bool setFromFramebuffer(int width, int height, int sample, int stencil);
+   int setFromFramebuffer(int width, int height, int sample, int stencil);
    void destroy();
    CanvasPtr canvas();
    void flush();
@@ -122,10 +122,10 @@ struct Surface
    int height();
 };
 
-bool Surface::setFromFramebuffer(int width, int height, int sample, int stencil)
+int Surface::setFromFramebuffer(int width, int height, int sample, int stencil)
 {
    auto ctx = context();
-   if (!ctx) return false;
+   if (!ctx) return 1;
 
    if (!impl) impl = new StateSurface;
 
@@ -154,11 +154,11 @@ bool Surface::setFromFramebuffer(int width, int height, int sample, int stencil)
 
    if (impl->m_surface){
       impl->m_state._canvas = impl->m_surface->getCanvas();
-      return true;
+      return 0;
    }
 
    delete impl;
-   return false;
+   return 2;
 }
 
 void Surface::destroy()

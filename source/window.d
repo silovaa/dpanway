@@ -67,7 +67,9 @@ writeln("Window Dtor");
     {
         if (start){
             m_context.makeCurrent();
-            if (m_surface.setFromFramebuffer(ww, hh)){
+            auto ret = m_surface.setFromFramebuffer(ww, hh);
+            writeln("askConfigure ", ww, " ", hh, " ", ret);
+            if (ret == 0){
                 draw(Canvas(m_surface));
                 m_surface.flush();
                 m_context.swapBuffers();
@@ -107,9 +109,9 @@ writeln("scale ", factor);
     {
         auto bkd = rgb(44, 42, 45);
         auto r = Rect(0, 0, ww, hh);
-        cnv.addRect(r);
+        //cnv.addRect(r);
         cnv.fillStyle = bkd;//(bkd.red, bkd.green, bkd.blue, bkd.alpha);
-        cnv.fill();
+        cnv.fillRect(r);
     }
   
 	// override void destroy() nothrow

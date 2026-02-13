@@ -12,10 +12,10 @@ void sk_path_copy(SkPath* dst, const SkPath* src)
    new (dst) SkPath(*src);
 }
 
-void sk_path_destruct(SkPath* path) 
-{
-   path->~SkPath();
-}
+// void sk_path_destruct(SkPath* path) 
+// {
+//    path->~SkPath();
+// }
 
 SkPathBuilder* cpp_make_builder(uint8_t fill_rule)
 {
