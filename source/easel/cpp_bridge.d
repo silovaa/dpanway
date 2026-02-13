@@ -58,7 +58,7 @@ extern(C++){
         void strokeRect(const ref Rect);
         void strokeRoundRect(const ref Rect, float);
 
-    package @nogc: struct CppCanvas
+    package @nogc: 
         ///////////////////////////////////////////////////////////////////////////////////
         // Styles (property for override)
 
@@ -106,7 +106,7 @@ extern(C++){
 
     package:
         void fill_type(int);
-        Path snapshot();
+        Path snapshot(); 
         Path detach();
         void reset();
     }
