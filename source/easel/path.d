@@ -1,8 +1,5 @@
 module easel.path;
 
-//import easel.rect;
-//import easel.circle;
-
 import easel.cpp_bridge;
 import easel.skia.sdk;
 
