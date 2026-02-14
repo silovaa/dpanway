@@ -107,11 +107,12 @@ writeln("scale ", factor);
 
     void draw(Canvas cnv) 
     {
-        auto bkd = rgb(44, 42, 45);
-        auto r = Rect(0, 0, ww, hh);
-        //cnv.addRect(r);
+        auto bkd = rgb(0, 4, 145); 
+        //auto r = Rect(0, 0, ww, hh);
+        //cnv.addRect(Rect(0, 0, ww, hh));
         cnv.fillStyle = bkd;//(bkd.red, bkd.green, bkd.blue, bkd.alpha);
-        cnv.fillRect(r);
+        cnv.fillRect(Rect(0, 0, ww, hh));
+        //cnv.fill();
     }
   
 	// override void destroy() nothrow

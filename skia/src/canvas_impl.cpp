@@ -265,10 +265,10 @@ struct CppCanvas
    ///////////////////////////////////////////////////////////////////////////////////
    // Rectangles
 
-   void fillRect(const SkRect& r);
-   void fillRoundRect(const SkRect& r, float radius);
-   void strokeRect(const SkRect& r);
-   void strokeRoundRect(const SkRect& r, float radius);
+   void fill_rect(const SkRect& r);
+   void fill_round_rect(const SkRect& r, float radius);
+   void stroke_rect(const SkRect& r);
+   void stroke_round_rect(const SkRect& r, float radius);
 };
 
 void CppCanvas::save()
@@ -298,9 +298,6 @@ void CppCanvas::clip(const SkPath &p)
 {
    impl->_canvas->clipPath(p, true);
 }
-
-//struct Rect  {float l, t, r, b;};
-//struct Point {float x, y;};
 
 SkRect CppCanvas::clipExtent()
 {
@@ -442,22 +439,22 @@ void CppCanvas::global_composite_op(int mode)
    impl->current()->_fill_paint.setBlendMode(mode_);
 }
 
-void CppCanvas::fillRect(const SkRect& r)
+void CppCanvas::fill_rect(const SkRect& r)
 { 
    impl->_canvas->drawRect(r, impl->current()->_fill_paint);
 }
 
-void CppCanvas::fillRoundRect(const SkRect& r, float radius)
+void CppCanvas::fill_round_rect(const SkRect& r, float radius)
 {
    impl->_canvas->drawRoundRect(r, radius, radius, impl->current()->_fill_paint);
 }
 
-void CppCanvas::strokeRect(const SkRect& r)
+void CppCanvas::stroke_rect(const SkRect& r)
 {
    impl->_canvas->drawRect(r, impl->current()->_stroke_paint);
 }
 
-void CppCanvas::strokeRoundRect(const SkRect& r, float radius)
+void CppCanvas::stroke_round_rect(const SkRect& r, float radius)
 {
    impl->_canvas->drawRoundRect(r, radius, radius, impl->current()->_stroke_paint);
 }

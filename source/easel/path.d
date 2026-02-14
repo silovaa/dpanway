@@ -23,7 +23,7 @@ struct PathBuilder
         this(cpp_make_builder(rule));
     }
 
-    ~this() @nogc {cpp_delete_builder(self.impl);}
+    ~this() @nogc {cpp_delete_builder(cpp_builder.impl);}
 
     @disable this(this);
 
@@ -67,7 +67,8 @@ nothrow @nogc:
 
     Path pathDetach()
     {
-        isDirty = true;
+        isDirty = false;
+        m_path.reset();
 
         return cpp_builder.detach();
     }
@@ -81,13 +82,13 @@ nothrow @nogc:
 
     alias cpp_builder this;
 
-    bool isDirty = false;
-
     bool point_in_path(Point p)
     {return path.includes(p.x, p.y);}
 
-//private:
     CppPathBuilder cpp_builder;
+    bool isDirty = false;
+
+private:
     Path m_path;
 }
 
@@ -138,12 +139,12 @@ mixin template PathBuilderProxy()
         builder_data.isDirty = true;
     }
 
-    void addRect(const ref Rect rec)
+    void addRect(in Rect rec)
     {
         builder_data.addRect(rec);
         builder_data.isDirty = true;
     }
-    void addRoundRect(const ref Rect rec, float radius)
+    void addRoundRect(in Rect rec, float radius)
     {
         builder_data.addRoundRect(rec, radius);
         builder_data.isDirty = true;

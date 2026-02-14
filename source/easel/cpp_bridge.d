@@ -30,15 +30,12 @@ extern(C++){
     {
         mixin Impl!CanvasImpl;
 
+        //простые методы переносятся в D как есть
     @nogc:
         ///////////////////////////////////////////////////////////////////////////////////
         // State
         void save();
         void restore();
-        void clip(const ref Path);
-        void fill(const ref Path);
-        void stroke(const ref Path);
-
         Rect clipExtent();
 
         ///////////////////////////////////////////////////////////////////////////////////
@@ -51,16 +48,16 @@ extern(C++){
         AffineTransform transform();
         void transform(const ref AffineTransform);
 
+        //методы требующие перегрузки в D
+    package:
         ///////////////////////////////////////////////////////////////////////////////////
-        // Rectangles
-        void fillRect(const ref Rect);
-        void fillRoundRect(const ref Rect, float);
-        void strokeRect(const ref Rect);
-        void strokeRoundRect(const ref Rect, float);
+        // State
+        void clip(const ref Path);
+        void fill(const ref Path);
+        void stroke(const ref Path);
 
-    package @nogc: 
         ///////////////////////////////////////////////////////////////////////////////////
-        // Styles (property for override)
+        // Styles 
 
         void fill_linear(const(Point)* pts, const(ColorImpl)* colors, 
                             const(float)* offsets, size_t count);
@@ -82,6 +79,13 @@ extern(C++){
         void line_join(int);
         void miter_limit(float);
         void global_composite_op(int);
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        // Rectangles
+        void fill_rect(const ref Rect);
+        void fill_round_rect(const ref Rect, float);
+        void stroke_rect(const ref Rect);
+        void stroke_round_rect(const ref Rect, float);
     }
 
     struct CppPathBuilder
