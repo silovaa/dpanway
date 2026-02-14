@@ -148,22 +148,23 @@ struct Canvas
     {
         auto ptr = surf.canvas;
         m_canvas_api.impl = ptr.state;
-        m_builder = PathBuilderInternal(ptr.path_builder);
+        builder_data = PathBuilderData(ptr.path_builder);
     }
 
     alias m_canvas_api this;
+    mixin PathBuilderProxy;
 
     ///////////////////////////////////////////////////////////////////////////////////
     // State
 
-    void beginPath() @nogc {m_builder.reset();}
+    void beginPath() @nogc {builder_data.reset();}
 
     // private extern(C++) @nogc static void cpp_clip(StateCanvas*, const ref Path);
     // void clip(in Path p) @nogc
     // {
     //     cpp_clip(impl, p);
     // }
-    void clip() @nogc {m_canvas_api.clip(m_builder.path);}
+    void clip() @nogc {m_canvas_api.clip(builder_data.path);}
     
     // private extern(C++) @nogc static void cpp_fill(StateCanvas*, const ref Path);
     // void fill(in Path p) @nogc
@@ -177,7 +178,7 @@ struct Canvas
     // {
     //     cpp_stroke(impl, p);
     // }
-    void stroke() @nogc {m_canvas_api.stroke(m_builder.path);}
+    void stroke() @nogc {m_canvas_api.stroke(builder_data.path);}
 
     // private extern(C++) @nogc static Rect cpp_clip_extent(StateCanvas*); 
     // Rect clip_extent() @nogc {return cpp_clip_extent(impl);}
@@ -278,18 +279,8 @@ struct Canvas
 
     @property void globalCompositeOp(Composite_op op) @nogc
     { global_composite_op(cast(int) op);}
-    
-    import std.functional : forward;
-    auto ref opDispatch(string name, Args...)(auto ref Args args)
-    if (__traits(hasMember, PathBuilderInternal, name)) // Переносим проверку в constraint
-    {
-        import std.functional : forward;
-        // Используем mixin или getMember для вызова
-        return __traits(getMember, m_builder, name)(forward!args);
-    }
 
 private: 
-    PathBuilderInternal m_builder;
     CppCanvas m_canvas_api;
 }
 

@@ -20,20 +20,21 @@ struct PathBuilder
 {
     this(FillRule rule) @nogc
     {
-        self = PathBuilderInternal(cpp_make_builder(rule));
+        this(cpp_make_builder(rule));
     }
 
     ~this() @nogc {cpp_delete_builder(self.impl);}
 
-    alias self this;
     @disable this(this);
 
+    mixin PathBuilderProxy;
+    alias builder_data this;
+
 private:
-    PathBuilderInternal self;
 
     this(PathBuilderImpl impl) @nogc
     {
-        self = PathBuilderInternal(impl);
+        builder_data = PathBuilderData(impl);
     }
 }
 
@@ -47,24 +48,17 @@ private extern(C++) @nogc {
     void cpp_delete_builder(PathBuilderImpl);
 }
 
-package struct PathBuilderInternal
+package:
+struct PathBuilderData
 {
 nothrow @nogc:
 
-    this(PathBuilderImpl impl) 
-    {
-        m_path_builder.impl = impl;
-    }
-
-    alias m_path_builder this;
-
-    bool point_in_path(Point p)
-    {return path.includes(p.x, p.y);}
+    this(PathBuilderImpl pimpl){cpp_builder.impl = pimpl;}
     
     ref Path path() return //@safe
     {
         if (isDirty){ 
-            m_path = snapshot();
+            m_path = cpp_builder.snapshot();
             isDirty = false;
         }
 
@@ -75,58 +69,88 @@ nothrow @nogc:
     {
         isDirty = true;
 
-        return detach();
+        return cpp_builder.detach();
     }
 
     void reset() 
     {
-        m_path_builder.reset();
+        cpp_builder.reset();
         m_path.reset();
         isDirty = false;
     }
 
-private:
-    CppPathBuilder m_path_builder;
-    Path m_path;
+    alias cpp_builder this;
+
     bool isDirty = false;
+
+    bool point_in_path(Point p)
+    {return path.includes(p.x, p.y);}
+
+//private:
+    CppPathBuilder cpp_builder;
+    Path m_path;
 }
 
-// private:
+mixin template PathBuilderProxy()
+{
+    private PathBuilderData builder_data;
 
-// mixin template PathBuilderApi(ImplType) {
-//     mixin ImplAccessor!ImplType;
-//     // Хелпер для void методов (для краткости)
-//     mixin template Void(string name, Args...) {
-//         mixin ApiMethod!(ImplType, void, name, Args);
-//     }
-//     mixin template Bool(string name, Args...) {
-//         mixin ApiMethod!(ImplType, bool, name, Args);
-//     }
-//     // Хелпер для Setter (@property)
-//     mixin template Set(string name, T) {
-//         mixin ApiSetter!(ImplType, name, T);
-//     }
+    bool point_in_path(Point p)
+    {return builder_data.point_in_path(p);}
 
-//     // mixin template Prop(string name, T) {
-//     //     mixin ApiProperty!(ImplType, name, T);
-//     // }
+    bool isEmpty(){return builder_data.isEmpty;}
+
+    void close()
+    {
+        if (builder_data.isDirty) builder_data.close();
+    }
     
-//     mixin Bool!("is_empty");
-//     mixin Void!("close");
+    void moveTo(Point p)
+    {
+        builder_data.moveTo(p);
+        builder_data.isDirty = true;
+    }
+    void lineTo(Point p)
+    {
+        builder_data.lineTo(p);
+        builder_data.isDirty = true;
+    }
+    void arcTo(Point p1, Point p2, float r)
+    {
+        builder_data.arcTo(p1, p2, r);
+        builder_data.isDirty = true;
+    }
+    void quadraticCurveTo(Point p1, Point p2)
+    {
+        builder_data.quadraticCurveTo(p1, p2);
+        builder_data.isDirty = true;
+    }
+    void bezierCurveTo(Point p1, Point p2, Point p3)
+    {
+        builder_data.bezierCurveTo(p1, p2, p3);
+        builder_data.isDirty = true;
+    }
 
-//     mixin Set!("fill_type", FillRule);
+    void arc(Point p, float radius, 
+             float start_angle, float end_angle, bool ccw)
+    {
+        builder_data.arc(p, radius, start_angle, end_angle, ccw );
+        builder_data.isDirty = true;
+    }
 
-//     mixin Void!("move_to", Point);
-//     mixin Void!("line_to", Point);
-//     mixin Void!("arc_to", Point, Point, float);
-//     mixin Void!("quadratic_curve_to", Point, Point);
-//     mixin Void!("bezier_curve_to", Point, Point, Point);
-
-//     mixin Void!("arc", Point, float, float, float, bool);
-   
-//     mixin Void!("add_rect", Rect);
-//     mixin Void!("add_round_rect", Rect, float);
-//     mixin Void!("add_circle", Point, float);
-    
-//     //mixin Void!("clear_rect", float, float, float, float);
-// }
+    void addRect(const ref Rect rec)
+    {
+        builder_data.addRect(rec);
+        builder_data.isDirty = true;
+    }
+    void addRoundRect(const ref Rect rec, float radius)
+    {
+        builder_data.addRoundRect(rec, radius);
+        builder_data.isDirty = true;
+    }
+    void addCircle(Point center, float radius)
+    {
+        builder_data.addCircle(center, radius);
+        builder_data.isDirty = true;
+    }
+}
