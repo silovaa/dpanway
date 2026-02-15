@@ -109,7 +109,8 @@ struct Canvas
     CppCanvas m_canvas_api;
     alias m_canvas_api this;
 
-    mixin PathBuilderProxy;
+    private PathBuilderData builder_data;
+    mixin PathBuilderAPI;
 
     ///////////////////////////////////////////////////////////////////////////////////
     // State

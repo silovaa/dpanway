@@ -15,16 +15,18 @@ enum FillRule: ubyte
 
 struct PathBuilder
 {
-    this(FillRule rule) @nogc
+    static PathBuilder create(FillRule rule = FillRule.kDefault) @nogc
     {
-        this(cpp_make_builder(rule));
+        return PathBuilder(cpp_make_builder(rule));
     }
 
     ~this() @nogc {cpp_delete_builder(cpp_builder.impl);}
 
+    @disable this();
     @disable this(this);
 
-    mixin PathBuilderProxy;
+    PathBuilderData builder_data;
+    mixin PathBuilderAPI;
     alias builder_data this;
 
 private:
@@ -33,11 +35,6 @@ private:
     {
         builder_data = PathBuilderData(impl);
     }
-}
-
-PathBuilder makePathBuilder() @nogc
-{
-    return PathBuilder(cpp_make_builder(FillRule.kDefault));
 }
 
 private extern(C++) @nogc {
@@ -82,6 +79,7 @@ nothrow @nogc:
     bool point_in_path(Point p)
     {return path.includes(p.x, p.y);}
 
+package:
     CppPathBuilder cpp_builder;
     bool isDirty = false;
 
@@ -89,9 +87,8 @@ private:
     Path m_path;
 }
 
-mixin template PathBuilderProxy()
+mixin template PathBuilderAPI()
 {
-    private PathBuilderData builder_data;
 
     bool point_in_path(Point p)
     {return builder_data.point_in_path(p);}

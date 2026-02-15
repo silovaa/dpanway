@@ -1,5 +1,4 @@
 #include <stack>
-//#include "opaque.hpp"
 
 #include <SkBitmap.h>
 #include <SkColorSpace.h>
