@@ -65,12 +65,15 @@ writeln("Window Dtor");
 
     void askConfigure()
     {
+        writeln("askConfigure ", ww, " ", hh);
+
         if (start){
             m_context.makeCurrent();
             auto ret = m_surface.setFromFramebuffer(ww, hh);
-            writeln("askConfigure ", ww, " ", hh, " ", ret);
+            
             if (ret == 0){
-                draw(Canvas(m_surface));
+                auto cnv = Canvas(m_surface);
+                draw(cnv);
                 m_surface.flush();
                 m_context.swapBuffers();
                 start = false;
@@ -90,8 +93,8 @@ writeln("Window Dtor");
 
     void on_scale_changed(float factor)
     {
-//Logger.info("Window on_scale_changed %f", factor);
-writeln("scale ", factor);
+        //Logger.info("Window on_scale_changed %f", factor);
+        writeln("scale ", factor);
     }
 
     override void keyFocused(bool f){writeln("keyFocused ", f);}
@@ -105,7 +108,7 @@ writeln("scale ", factor);
                 uint         key_mod){writeln("point_click ", button);}
     override void scroll(int time, int axis, double value){}
 
-    void draw(Canvas cnv) 
+    void draw(ref Canvas cnv) 
     {
         auto bkd = rgb(0, 4, 145); 
         //auto r = Rect(0, 0, ww, hh);
