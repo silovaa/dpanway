@@ -106,21 +106,21 @@ package(wayland):
     }
 }
 
-package(wayland):
-
-
-struct Surface
+class Surface
 {
-    inout(wl_surface*) c_ptr() inout
+    final inout(wl_surface*) c_ptr() inout
     {
         return m_native;
     }
 
-    void commit()
+    final void commit()
     {
         wl_surface_commit(c_ptr());
     }
 
+    abstract void frameReadiness();
+
+private:
     void setup()
     {
         m_native = enforce(wl_compositor_create_surface(Display.compositor), 
@@ -134,7 +134,6 @@ struct Surface
         wl_surface_destroy(m_native);
     }
 
-private:
     wl_surface* m_native;
 }
 

@@ -177,7 +177,7 @@ void event_wait()
 
     if (ret < 0) {
         if (m_fds[EventT.wayland].revents & POLLHUP)
-            throw new Exception("disconnected from wayland");
+            throw new Exception("disconnected from wayland"); 
 
         wl_display_cancel_read(m_display);
         throw new Exception("failed to poll():");
