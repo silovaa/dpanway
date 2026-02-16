@@ -117,8 +117,13 @@ class Surface
     {
         wl_surface_commit(c_ptr());
     }
+protected:
+    final void refresh()
+    {
 
-    abstract void frameReadiness();
+    }
+    
+    abstract void draw();
 
 private:
     void setup()
