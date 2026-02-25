@@ -58,5 +58,4 @@ struct EGLWaylandContext
 
 private:
     wl_egl_window* m_c_ptr;
-    
 }

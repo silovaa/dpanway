@@ -12,10 +12,15 @@ public import wayland.xdg_shell;
 version(WaylandEGL):
 public import wayland.egl_window;
 
-struct Protocols 
-{
-    XDGTopLevel toplevel;
-    ScaleFactor scale;
-    XDGDecorated decor;
-    Seat seat;
-}
+// struct Protocols 
+// {
+//     XDGTopLevel toplevel;
+//     ScaleFactor scale;
+//     XDGDecorated decor;
+//     Seat seat;
+// }
+
+alias RootWinProtocols = Protocols!(XDGTopLevel, 
+                                    ScaleFactor, 
+                                    XDGDecorated, 
+                                    Seat);

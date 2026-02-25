@@ -23,7 +23,7 @@ public:
         assert(!native, "Display already initialized");
         Global[] globals;
         
-        // Проверка, что T — это структура (ваша struct Protocols)
+        // Проверка, что T — это структура struct (Protocols)
         static if (is(T == struct)) 
         {
             static foreach (m; __traits(allMembers, T)) 
@@ -131,75 +131,82 @@ private:
         m_fds[EventT.key].fd = -1;
         m_fds[EventT.key].events = POLLIN;
     }
-}
 
-enum EventT {
-    system, wayland, key, count
-}
+    enum EventT {
+        system, wayland, key, count
+    }
 
-void event_wait() 
-{
-    auto ref dpy = Display.instance;
-    auto m_display = dpy.native;
-    auto m_fds = dpy.m_fds;
+    void event_wait() 
+    {
+        while (wl_display_prepare_read(native) != 0) {
+            if (wl_display_dispatch_pending(native) < 0)
+                throw new Exception("failed to dispatch pending Wayland events");
+        }
 
-    while (wl_display_prepare_read(m_display) != 0) {
-        if (wl_display_dispatch_pending(m_display) < 0)
+        int ret;
+
+        while ((ret = wl_display_flush(native)) < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            if (errno == EAGAIN) {
+                pollfd[1] fds;
+                fds[0].fd = m_fds[EventT.wayland].fd;
+                fds[0].events = POLLOUT;
+
+                do {
+                    ret = poll(fds.ptr, 1, -1);
+                } while (ret < 0 && errno == EINTR);
+            }
+        }
+
+        if (ret < 0) {
+            wl_display_cancel_read(native);
+            throw new Exception("failed to display flush");
+        }
+
+        do {
+            ret = poll(m_fds.ptr, EventT.count - 1, -1); //To do add system interrupts
+        } while (ret < 0 && errno == EINTR);
+
+        if (ret < 0) {
+            if (m_fds[EventT.wayland].revents & POLLHUP)
+                throw new Exception("disconnected from wayland"); 
+
+            wl_display_cancel_read(native);
+            throw new Exception("failed to poll():");
+        }
+
+        if (m_fds[EventT.wayland].revents & POLLIN) {
+
+            if (wl_display_read_events(native) < 0)
+                throw new Exception("failed to read Wayland events");
+        }
+        else
+            wl_display_cancel_read(native);
+
+        if (wl_display_dispatch_pending(native) < 0)
             throw new Exception("failed to dispatch pending Wayland events");
-    }
 
-    int ret;
-
-    while ((ret = wl_display_flush(m_display)) < 0) {
-        if (errno == EINTR) {
-            continue;
+        if (m_fds[EventT.key].revents & POLLIN) {
+            dpy.kb_repeat.emit(m_fds[EventT.key].fd);
         }
-
-        if (errno == EAGAIN) {
-            pollfd[1] fds;
-            fds[0].fd = m_fds[EventT.wayland].fd;
-            fds[0].events = POLLOUT;
-
-            do {
-                ret = poll(fds.ptr, 1, -1);
-            } while (ret < 0 && errno == EINTR);
-        }
-    }
-
-    if (ret < 0) {
-        wl_display_cancel_read(m_display);
-        throw new Exception("failed to display flush");
-    }
-
-    do {
-        ret = poll(m_fds.ptr, EventT.count - 1, -1); //To do add system interrupts
-    } while (ret < 0 && errno == EINTR);
-
-    if (ret < 0) {
-        if (m_fds[EventT.wayland].revents & POLLHUP)
-            throw new Exception("disconnected from wayland"); 
-
-        wl_display_cancel_read(m_display);
-        throw new Exception("failed to poll():");
-    }
-
-    if (m_fds[EventT.wayland].revents & POLLIN) {
-
-        if (wl_display_read_events(m_display) < 0)
-            throw new Exception("failed to read Wayland events");
-    }
-    else
-        wl_display_cancel_read(m_display);
-
-    if (wl_display_dispatch_pending(m_display) < 0)
-        throw new Exception("failed to dispatch pending Wayland events");
-
-    if (m_fds[EventT.key].revents & POLLIN) {
-        dpy.kb_repeat.emit(m_fds[EventT.key].fd);
     }
 }
 
 package:
+
+interface Drawable
+{
+protected:
+    final void refresh()
+    {
+
+    }
+
+    void draw();
+}
 
 import core.sys.linux.timerfd;
 import core.sys.posix.unistd : close, read;

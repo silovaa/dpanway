@@ -10,12 +10,12 @@ import std.stdio;
 int main()
 {
     try {
-        egl_connect!Protocols;//, XDGDecoration);
+        egl_connect!RootWinProtocols;
 
         bool isrun = true;
         auto window = new Window(200, 400);
 
-        window.toplevel.setTitle("Example application");
+        window.setTitle("Example application");
         window.onClosed = (){isrun = false;};
 
         while(isrun) {
