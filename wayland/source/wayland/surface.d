@@ -241,7 +241,7 @@ void cb_preferred_scale(void* data, wp_fractional_scale_v1 *,
     }
     catch(Exception e)
         Logger.error("Callback ScaleManager preferred_scale failed: %s", e.msg);
-};
+}
 
 }
 
