@@ -7,24 +7,28 @@ import easel.canvas : EaselSurface = Surface, Canvas, Rect, Point;
 import easel.color;
 //import easel.rect;
 
+alias WinProtocols = Protocols!(ScaleFactor, 
+                                XDGDecorated, 
+                                Seat);
 
-class Window: InputLayer
+class Window: TopSurface!WinProtocols, InputLayer
 {
-    ProtocolStore!Protocols wl;
-    alias wl this;
+    // ProtocolStore!Protocols wl;
+    // alias wl this;
 
     this (uint wigth, uint height)
     {
-        wl.toplevel.onClosed  = &closed;
-        wl.toplevel.onConfigure = &configure;
-        wl.toplevel.onAskConfigure = &askConfigure;
-        wl.scale.onScaleChanged = &on_scale_changed;   
+        // wl.toplevel.onClosed  = &closed;
+        // wl.toplevel.onConfigure = &configure;
+        // wl.toplevel.onAskConfigure = &askConfigure;
+        //wl.scale.onScaleChanged = &on_scale_changed;
+        onScaleChanged = &on_scale_changed;   
  
-        wl.setupAll();
-        wl.seat.bind(wl, this);
+        setup();
+        seat_bind(this);
 
         ww=wigth; hh = height;
-        m_context = EGLWaylandContext(wl.surface, wigth, height);
+        m_context = EGLWaylandContext(this, wigth, height);
         // m_width = wigth;
         // m_height = height;
         writeln("Window Ctor");
