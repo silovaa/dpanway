@@ -92,7 +92,7 @@ public:
     }
 
 package(wayland):
-    void setup(T)(ref Surface!T prot) 
+    void setup(T)(Surface!T prot) 
     {
         if (globalValid()) 
         {
@@ -125,12 +125,18 @@ class Surface(Proto)
     Proto protocols;
     alias protocols this;
 
+    this()
+    {
+        if (Display.native is null)
+            Display.connect!Proto();
+    }
+
     ~this()
     {
         if (m_native) dispose();
     }
 
-    final void setup()
+    void setup(this T)()
     {
         m_native = enforce(wl_compositor_create_surface(Display.compositor), 
                             "Can't create surface");
