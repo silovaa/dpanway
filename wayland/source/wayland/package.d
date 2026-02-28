@@ -5,7 +5,7 @@ public import wayland.input_layer;
 public import wayland.logger;
 
 //wayland protocols
-public import wayland.surface: ProtocolStore, ScaleFactor;
+public import wayland.surface: ScaleFactor;
 public import wayland.seat;
 public import wayland.xdg_shell;
 
@@ -26,14 +26,14 @@ struct Protocols(T...)
 //концепт для рендера
 template isRender(T) {
     enum isRender = __traits(compiles, (T t) {
-        t.attach();
+        void* p; t.setup(p);
         t.resize();
         t.render();
     });
 }
 
 class TopWindow(Render, Proto): TopSurface
-
+    if (isRender!Render && is(Proto : Protocols!Args, Args...))
 {
     Proto protocols;
     alias protocols this;
@@ -42,7 +42,16 @@ class TopWindow(Render, Proto): TopSurface
 
     this()
     {
-
+        if (Display.native is null)
+            Display.connect!Proto();
+        
+        render.setup(cast(void*)Display.native);
+        setup(Display.instance);
+        protocols.setup(this);
     }
+
+    
 }
+
+//alias TopWindow(Render, Proto) = BaseWindow!(TopSurface, Render, Proto);
 
