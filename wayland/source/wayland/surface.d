@@ -7,73 +7,62 @@ import wayland.logger;
 import std.exception;
 import std.stdio;
 
-struct Protocols(T...) 
-{
-    T data; 
+// struct ProtocolStore(T) {
+//     Surface surface;
 
-    static foreach (size_t i, Type; T) {
-        // Вклеиваем методы, передавая им ссылку на конкретное поле из кортежа data
-        // Каждый протокол должен иметь template Iface(alias ctx) {набор методов}
-        mixin Type.Iface!(data[i]);
-    }
-}
-
-struct ProtocolStore(T) {
-    Surface surface;
-
-    T protocols;
-    alias protocols this;
+//     T protocols;
+//     alias protocols this;
     
-    // получение ссылки на протокол по его ТИПУ
-    // Использование: auto p = store.get!ScaleFactor;
-    auto ref get(Proto)() {
-        // Ищем имя поля, тип которого совпадает с Proto
-        enum fieldName = () {
-            foreach (name; __traits(allMembers, T)) {
-                // Используем тип T напрямую, чтобы избежать проблем с контекстом экземпляра
-                if (is(typeof(__traits(getMember, T, name)) == Proto)) {
-                    return name;
-                }
-            }
-            return null;
-        }();
+//     // получение ссылки на протокол по его ТИПУ
+//     // Использование: auto p = store.get!ScaleFactor;
+//     auto ref get(Proto)() {
+//         // Ищем имя поля, тип которого совпадает с Proto
+//         enum fieldName = () {
+//             foreach (name; __traits(allMembers, T)) {
+//                 // Используем тип T напрямую, чтобы избежать проблем с контекстом экземпляра
+//                 if (is(typeof(__traits(getMember, T, name)) == Proto)) {
+//                     return name;
+//                 }
+//             }
+//             return null;
+//         }();
 
-        static if (fieldName !is null) {
-            return __traits(getMember, protocols, fieldName);
-        } else {
-            static assert(0, "Протокол " ~ Proto.stringof ~ " не найден в " ~ T.stringof);
-        }
-    }
+//         static if (fieldName !is null) {
+//             return __traits(getMember, protocols, fieldName);
+//         } else {
+//             static assert(0, "Протокол " ~ Proto.stringof ~ " не найден в " ~ T.stringof);
+//         }
+//     }
 
-    void setupAll() 
-    {
-        surface.setup();
+//     void setupAll() 
+//     {
+//         surface.setup();
 
-        static foreach (memberName; __traits(allMembers, T)) {
-            {
-                // Используем компилируемую проверку, чтобы не упасть на полях без setup
-                static if (__traits(hasMember, typeof(__traits(getMember, protocols, memberName)), "setup")) {
-                    __traits(getMember, protocols, memberName).setup(this);
-                }
-            }
-        }
-    }
+//         static foreach (memberName; __traits(allMembers, T)) {
+//             {
+//                 // Используем компилируемую проверку, чтобы не упасть на полях без setup
+//                 static if (__traits(hasMember, typeof(__traits(getMember, protocols, memberName)), "setup")) {
+//                     __traits(getMember, protocols, memberName).setup(this);
+//                 }
+//             }
+//         }
+//     }
 
-    // Освобождение в обратном порядке (ВАЖНО для Wayland)
-    void dispose() 
-    {
-        // static foreach_reverse — лучший способ для 2026 года
-        static foreach_reverse (memberName; __traits(allMembers, T)) {
-            {
-                static if (__traits(hasMember, typeof(__traits(getMember, protocols, memberName)), "dispose")) {
-                    __traits(getMember, protocols, memberName).dispose();
-                }
-            }
-        }
+//     // Освобождение в обратном порядке (ВАЖНО для Wayland)
+//     void dispose() 
+//     {
+//         // static foreach_reverse — лучший способ для 2026 года
+//         static foreach_reverse (memberName; __traits(allMembers, T)) {
+//             {
+//                 static if (__traits(hasMember, typeof(__traits(getMember, protocols, memberName)), "dispose")) {
+//                     __traits(getMember, protocols, memberName).dispose();
+//                 }
+//             }
+//         }
 
-        surface.dispose();
-    }
-}
+//         surface.dispose();
+//     }
+// }
 
 struct ScaleFactor
 {
@@ -126,34 +115,55 @@ package(wayland):
 
 package(wayland):
 
-
-struct Surface
+/++ 
+ * Базовая поверхность, наследуется TopSurface, ShellSurface, SubSurface.
+ +/
+class Surface
 {
-    inout(wl_surface*) c_ptr() inout
+protected:
+    final inout(wl_surface*) c_ptr() inout
     {
         return m_native;
     }
 
-    void commit()
+    final void commit()
     {
-        wl_surface_commit(c_ptr());
+        wl_surface_commit(c_ptr);
     }
 
-    void setup()
+    final void setup(in Display dpy)
     {
-        m_native = enforce(wl_compositor_create_surface(Display.compositor), 
+        m_native = enforce(wl_compositor_create_surface(dpy.compositor), 
                             "Can't create surface");
 
         wl_surface_add_listener(m_native, &surface_lsr, null);
     }
 
-    void dispose()
+    final void dispose()
     {
         wl_surface_destroy(m_native);
     }
 
+    final void refresh()
+    {
+        if (m_farame) {
+            wl_callback_destroy(m_farame);
+        }
+        
+        // Создаем новый
+        m_farame = wl_surface_frame(c_ptr);
+        wl_callback_add_listener(m_farame, &frame_lsr, this);
+        
+        // Сбрасываем флаг готовности
+        need_redraw = false;
+    }
+
+    abstract void draw();
+
 private:
     wl_surface* m_native;
+    wl_callback* m_farame;
+    bool need_redraw;
 }
 
 private:
@@ -171,7 +181,22 @@ __gshared wp_fractional_scale_v1_listener scale_lsr =
     preferred_scale: &cb_preferred_scale
 };
 
+__gshared wl_callback_listener frame_lsr =
+{
+    &cb_frame
+};
+
 extern(C) nothrow {
+
+void cb_frame(void* data, wl_callback* callback, uint)
+{
+    auto surf = cast(Surface) data;
+
+    wl_callback_destroy(callback);
+    surf.m_farame = null;
+
+    surf.need_redraw = true;
+}
 
 void cb_enter(void* data, wl_surface* s, wl_output* o) 
 {

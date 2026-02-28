@@ -7,24 +7,28 @@ import easel.canvas : EaselSurface = Surface, Canvas, Rect, Point;
 import easel.color;
 //import easel.rect;
 
+alias WlProtocols = Protocols!(ScaleFactor, 
+                               XDGDecorated, 
+                               Seat);
 
-class Window: InputLayer
+class Window: TopWindow!(EGLRender, WlProtocols), InputLayer
 {
-    ProtocolStore!Protocols wl;
-    alias wl this;
-
     this (uint wigth, uint height)
     {
-        wl.toplevel.onClosed  = &closed;
-        wl.toplevel.onConfigure = &configure;
-        wl.toplevel.onAskConfigure = &askConfigure;
-        wl.scale.onScaleChanged = &on_scale_changed;   
+        // wl.toplevel.onClosed  = &closed;
+        // wl.toplevel.onConfigure = &configure;
+        // wl.toplevel.onAskConfigure = &askConfigure;
+        // wl.scale.onScaleChanged = &on_scale_changed;   
  
-        wl.setupAll();
-        wl.seat.bind(wl, this);
+        // wl.setupAll();
+        //wl.seat.bind(wl, this);
+        super(wigth, height);
 
-        ww=wigth; hh = height;
-        m_context = EGLWaylandContext(wl.surface, wigth, height);
+        onScaleChanged = &on_scale_changed;
+        seat_bind(this);
+
+        // ww=wigth; hh = height;
+        // m_context = EGLWaylandContext(wl.surface, wigth, height);
         // m_width = wigth;
         // m_height = height;
         writeln("Window Ctor");
@@ -34,8 +38,7 @@ class Window: InputLayer
     {
         // if (m_egl_window)
         //     wl_egl_window_destroy(m_egl_window);
-writeln("Window Dtor");
-        
+        writeln("Window Dtor");
     }
 
     // override void prepare(Wl_display* display)
@@ -124,9 +127,9 @@ writeln("scale ", factor);
     // }
 
 private:
-    EGLWaylandContext m_context;
+    //EGLWaylandContext m_context;
     EaselSurface m_surface;
-    uint ww, hh;
+    //uint ww, hh;
     bool start = true;
 //     EglWaylandClient m_egl;
 //     Wl_egl_window* m_egl_window;

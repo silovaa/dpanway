@@ -12,10 +12,37 @@ public import wayland.xdg_shell;
 version(WaylandEGL):
 public import wayland.egl_window;
 
-struct Protocols 
+struct Protocols(T...) 
 {
-    XDGTopLevel toplevel;
-    ScaleFactor scale;
-    XDGDecorated decor;
-    Seat seat;
+    T data; 
+
+    static foreach (size_t i, Type; T) {
+        // Вклеиваем методы, передавая им ссылку на конкретное поле из кортежа data
+        // Каждый протокол должен иметь template Iface(alias ctx) {набор методов}
+        mixin Type.Iface!(data[i]);
+    }
 }
+
+//концепт для рендера
+template isRender(T) {
+    enum isRender = __traits(compiles, (T t) {
+        t.attach();
+        t.resize();
+        t.render();
+    });
+}
+
+class TopWindow(Render, Proto): TopSurface
+
+{
+    Proto protocols;
+    alias protocols this;
+
+    private Render render;
+
+    this()
+    {
+
+    }
+}
+
