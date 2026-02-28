@@ -7,6 +7,17 @@ import wayland.logger;
 import std.exception;
 import std.stdio;
 
+struct Protocols(T...) 
+{
+    T data; 
+
+    static foreach (size_t i, Type; T) {
+        // Вклеиваем методы, передавая им ссылку на конкретное поле из кортежа data
+        // Каждый протокол должен иметь template Iface(alias ctx) {набор методов}
+        mixin Type.Iface!(data[i]);
+    }
+}
+
 struct ProtocolStore(T) {
     Surface surface;
 
@@ -75,17 +86,24 @@ private:
 
     mixin GlobalFactory!ScaleManager;
 
+    void delegate(float /*factor*/) cbScaleChanged;
+
 public:
-    void delegate(float /*factor*/) onScaleChanged;
+    template Iface(alias ctx) {
+        @property void onScaleChanged(void delegate(float /*factor*/) cb)
+        {
+            ctx.cbScaleChanged = cb;
+        }
+    }
 
 package(wayland):
-    void setup(T)(ref ProtocolStore!T prot) 
+    void setup(Surface surface) 
     {
         if (globalValid()) 
         {
             m_fscale = wp_fractional_scale_manager_v1_get_fractional_scale(
                 m_global.c_ptr, 
-                prot.surface.c_ptr
+                surface.c_ptr
             );
 
             if (m_fscale) 
@@ -174,16 +192,16 @@ void cb_preferred_buffer_transform(void *data,
 void cb_preferred_scale(void* data, wp_fractional_scale_v1 *, 
                         uint scale)
 {
-    auto surface = cast(ScaleFactor*)data;
+    auto sf = cast(ScaleFactor*)data;
     float val = scale / 120.0f;
     
     try{
-        if (surface.onScaleChanged)
-            surface.onScaleChanged(val);
+        if (sf.cbScaleChanged)
+            sf.cbScaleChanged(val);
     }
     catch(Exception e)
         Logger.error("Callback ScaleManager preferred_scale failed: %s", e.msg);
-};
+}
 
 }
 

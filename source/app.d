@@ -10,19 +10,25 @@ import std.stdio;
 int main()
 {
     try {
-        egl_connect!Protocols;//, XDGDecoration);
-
-        bool isrun = true;
+       
+        //Подключение к дисплею происходит автоматически
         auto window = new Window(200, 400);
 
-        window.toplevel.setTitle("Example application");
-        window.onClosed = (){isrun = false;};
+        // Цикл сообщений для одного окна,
+        // повторный add(win) не имеет эффект.
+        // По идее этот цикл можно перенести в окно или даже
+        // в базовый класс и запускать методом window.show()
+        // но пока оставим так, что бы не усложнять наследование
+        auto loop = SinglEventLoop();
 
-        while(isrun) {
-            event_wait();
-        }
+        window.setTitle("Example application");
+        //window.onClosed = (){isrun = false;};
+        
+        //Если не добавить ни одного окна в run() сработает assert
+        loop.add(window);
 
-        egl_disconnect();
+        //При закрытии последнего окна цикл завершится
+        loop.run();
     }
     catch(Exception e) {
         writeln(e.msg);
