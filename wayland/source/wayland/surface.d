@@ -129,6 +129,11 @@ class Surface(Proto)
     {
         if (Display.native is null)
             Display.connect!Proto();
+
+        m_native = enforce(wl_compositor_create_surface(Display.compositor), 
+                            "Can't create surface");
+
+        wl_surface_add_listener(m_native, &surface_lsr, null);
     }
 
     ~this()
@@ -136,15 +141,16 @@ class Surface(Proto)
         if (m_native) dispose();
     }
 
+    final void commit()
+    {
+        wl_surface_commit(c_ptr);
+    }
+
+protected:
     void setup(this T)()
     {
-        m_native = enforce(wl_compositor_create_surface(Display.compositor), 
-                            "Can't create surface");
-
-        wl_surface_add_listener(m_native, &surface_lsr, null);
-
         static foreach (i, Type; Args) {
-            debug{writeln("Инициализация компонента #", i, ": ", Type.stringof);}
+            debug{writeln("Инициализация протокола #", i, ": ", Type.stringof);}
             
             static if (__traits(hasMember, Type, "setup")) {
                 protocols.data[i].setup(this);
@@ -154,8 +160,12 @@ class Surface(Proto)
 
     final dispose()
     {
+        if (m_frame) {
+            wl_callback_destroy(m_frame);
+        }
+        
         static foreach_reverse (i, Type; Args) {
-            debug{writeln("Удаление компонента #", i, ": ", Type.stringof);}
+            debug{writeln("Удаление протокола #", i, ": ", Type.stringof);}
             
             static if (__traits(hasMember, Type, "dispose")) {
                 protocols.data[i].dispose();
@@ -166,15 +176,17 @@ class Surface(Proto)
         m_native = null;
     }
 
-    final void commit()
-    {
-        wl_surface_commit(c_ptr());
-    }
-
-protected:
     final void refresh()
     {
+        if (m_frame) {
+            wl_callback_destroy(m_frame);
+        }
+        
+        // Создаем новый
+        m_frame = wl_surface_frame(c_ptr);
+        wl_callback_add_listener(m_frame, &s_frameListener, this);
 
+        need_draw = false;
     }
     
     abstract void draw();
@@ -198,8 +210,11 @@ package(wayland):
         return m_native;
     }
 
+    bool need_draw;
+
 private:
     wl_surface* m_native;
+    wl_callback* m_frame;
 }
 
 private:
