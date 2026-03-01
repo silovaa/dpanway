@@ -3,6 +3,7 @@ module wayland.xdg_shell;
 import wayland.internal.core;
 import wayland.surface;
 import wayland.logger;
+import wayland.display: Display;
 
 import std.exception;
 
@@ -23,34 +24,34 @@ enum XDGState
     constrained_bottom = 1<<XDG_TOPLEVEL_STATE_CONSTRAINED_BOTTOM
 }
 
-struct XDGTopLevel
+class XDGTopLevel: Surface
 {
-     void delegate() onClosed;
+    this(RenderBuffer buf, uint w, uint h)
+    {
+        m_buffer = buf;
+        m_width = w; 
+        m_height = h;
+    }
 
-    /**
-     * configure called by the composer when the state (s) 
-     * and/or window dimensions (w, h) change 
-     */
-    void delegate(uint w, uint h, uint s) onConfigure;
+    final void setTitle(const(char)* title)
+    {xdg_toplevel_set_title(m_toplevel, title);}
 
-    void delegate() onAskConfigure;
-
-    void setTitle(const(char)* title)
-    {xdg_toplevel_set_title(m_top, title);}
-
-    void setAppID(const(char)* id)
-    {xdg_toplevel_set_app_id(m_top, id);}
+    final void setAppID(const(char)* id)
+    {xdg_toplevel_set_app_id(m_toplevel, id);}
 
 package(wayland):
-    void setup(T)(ref ProtocolStore!T prot)
+    //Инициализация поверхностей
+    //выполняем перед инициализацией протоколов
+    override void setup(ref Display dpy)
     {
-        if (globalValid()){
+        if (globalValid() && m_buffer !is null){
+            super.setup(dpy);
             
             m_xdg_surfase = enforce(xdg_wm_base_get_xdg_surface(m_global.c_ptr, 
-                                                                prot.surface.c_ptr),
+                                                                c_ptr),
                                     "Can't create xdg surface");
                 
-            m_top = enforce(xdg_surface_get_toplevel(m_xdg_surfase),
+            m_toplevel = enforce(xdg_surface_get_toplevel(m_xdg_surfase),
                             "Can't create toplevel role");
 
             __gshared xdg_toplevel_listener toplevel_lsr = {
@@ -59,33 +60,52 @@ package(wayland):
                 configure_bounds: &cb_configure_bounds,
                 wm_capabilities : &cb_wm_capabilities
             };
-            xdg_toplevel_add_listener(m_top, &toplevel_lsr, cast(void*)&this);
+            xdg_toplevel_add_listener(m_toplevel, &toplevel_lsr, cast(void*)this);
 
             __gshared xdg_surface_listener surface_lsr = {
                 configure: &cb_xdgconfigure
             };
             xdg_surface_add_listener (m_xdg_surfase, 
-                                      &surface_lsr,cast(void*)&this);
+                                      &surface_lsr,cast(void*)this);
             
-            prot.surface.commit();
+            commit();
+
+            m_buffer.setup(dpy);
         }
     } 
 
-    void dispose()
+    override void dispose()
     {
-        if (m_top) {
-            xdg_toplevel_destroy(m_top);
+        if (m_toplevel) {
+            xdg_toplevel_destroy(m_toplevel);
             xdg_surface_destroy(m_xdg_surfase);
+            m_buffer.dispose();
         }
+
+        super.dispose();
     }
 
     mixin GlobalFactory!XDGWmBase;
 
+    RenderBuffer m_buffer;
+
+protected:
+    /** 
+     * Вызывается после изменения размера буфера рисования
+     * перед запросом кадра 
+     */
+    void configure(uint width, uint height, uint state){}
+
+    /** 
+     * Вызывается перед уничтожением всех ресурсов окна
+     */
+    void closed(){}
+
+    uint m_width, m_height;
+
 private:
     xdg_surface*  m_xdg_surfase;
-    xdg_toplevel* m_top;
-
-    xdg_toplevel* c_ptr() {return m_top;}
+    xdg_toplevel* m_toplevel;
 }
 
 enum DecorMode {
@@ -100,15 +120,15 @@ struct XDGDecorated
     }
 
 package(wayland):
-    void setup(T)(ref ProtocolStore!(T) prot) 
+    void setup(XDGTopLevel prot) 
     {
         if (globalValid()){
            
             m_decor = zxdg_decoration_manager_v1_get_toplevel_decoration(
                 m_global.c_ptr,
-                prot.get!XDGTopLevel.c_ptr());
+                prot.m_toplevel);
 
-            decorMode(DecorMode.ServerSide);
+            zxdg_toplevel_decoration_v1_set_mode(m_decor, DecorMode.ServerSide);
         }
     }
 
@@ -161,7 +181,7 @@ void cb_configure(void* data, xdg_toplevel *tt,
                     int width, int height, wl_array* states)
 {
     try{
-        auto inst = cast(XDGTopLevel*)data;
+        auto inst = cast(XDGTopLevel)data;
         uint state_res;
 
         uint32_t[] statesSlice = 

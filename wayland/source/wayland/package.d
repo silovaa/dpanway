@@ -14,7 +14,7 @@ public import wayland.egl_window;
 
 struct Protocols(T...) 
 {
-    T data; 
+    private T data; 
 
     static foreach (size_t i, Type; T) {
         // Вклеиваем методы, передавая им ссылку на конкретное поле из кортежа data
@@ -35,7 +35,7 @@ template isRender(T) {
 class TopWindow(Render, Proto): TopSurface
     if (isRender!Render && is(Proto : Protocols!Args, Args...))
 {
-    Proto protocols;
+    Protocols!(XDGTopLevel, Args) protocols;
     alias protocols this;
 
     private Render render;
@@ -50,7 +50,17 @@ class TopWindow(Render, Proto): TopSurface
         protocols.setup(this);
     }
 
-    
+protected:
+    override void configure()
+    {
+
+    }
+
+    override void closed()
+    {
+
+    }
+
 }
 
 //alias TopWindow(Render, Proto) = BaseWindow!(TopSurface, Render, Proto);

@@ -113,10 +113,10 @@ package(wayland):
     }
 }
 
-package(wayland):
+//package(wayland):
 
 /++ 
- * Базовая поверхность, наследуется TopSurface, ShellSurface, SubSurface.
+ + Базовая поверхность, наследуется TopSurface, ShellSurface, SubSurface.
  +/
 class Surface
 {
@@ -131,19 +131,6 @@ protected:
         wl_surface_commit(c_ptr);
     }
 
-    final void setup(in Display dpy)
-    {
-        m_native = enforce(wl_compositor_create_surface(dpy.compositor), 
-                            "Can't create surface");
-
-        wl_surface_add_listener(m_native, &surface_lsr, null);
-    }
-
-    final void dispose()
-    {
-        wl_surface_destroy(m_native);
-    }
-
     final void refresh()
     {
         if (m_farame) {
@@ -152,7 +139,7 @@ protected:
         
         // Создаем новый
         m_farame = wl_surface_frame(c_ptr);
-        wl_callback_add_listener(m_farame, &frame_lsr, this);
+        wl_callback_add_listener(m_farame, &frame_lsr, cast(void*)this);
         
         // Сбрасываем флаг готовности
         need_redraw = false;
@@ -160,10 +147,43 @@ protected:
 
     abstract void draw();
 
+package(wayland):
+    void setup(ref Display dpy)
+    {
+        m_native = enforce(wl_compositor_create_surface(dpy.compositor), 
+                            "Can't create surface");
+
+        wl_surface_add_listener(m_native, &surface_lsr, null);
+    }
+
+    void dispose()
+    {
+        wl_surface_destroy(m_native);
+    }
+
+    final void drawProcess()
+    {
+        if (need_redraw) {
+            draw();
+            need_redraw = false;
+        }
+    }
+
 private:
     wl_surface* m_native;
     wl_callback* m_farame;
     bool need_redraw;
+}
+
+interface RenderBuffer
+{
+    void setup(in Display);
+    void dispose();
+
+    void makeCurrent(Surface);
+    bool isValid();
+    void resize(uint, uint);
+    void flush();
 }
 
 private:
