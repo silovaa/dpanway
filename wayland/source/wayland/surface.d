@@ -154,19 +154,18 @@ protected:
     abstract void draw();
 
 package:
-    void setup(ref Display dpy)
+    protected void setup(ref Display dpy)
     {
-        if (m_buffer){
-            m_buffer.setup(dpy);
+        assert(m_buffer);
+        m_buffer.setup(dpy);
 
-            m_native = enforce(wl_compositor_create_surface(dpy.compositor), 
-                                "Can't create surface");
+        m_native = enforce(wl_compositor_create_surface(dpy.compositor), 
+                            "Can't create surface");
 
-            wl_surface_add_listener(m_native, &surface_lsr, null);
-        }
+        wl_surface_add_listener(m_native, &surface_lsr, null);
     }
 
-    void dispose()
+    protected void dispose()
     {
         m_buffer.dispose();
         wl_surface_destroy(m_native);

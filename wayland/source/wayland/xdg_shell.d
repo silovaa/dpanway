@@ -42,7 +42,7 @@ class XDGTopLevel: Surface
 package:
     //Инициализация поверхностей
     //выполняем перед инициализацией протоколов
-    override void setup(ref Display dpy)
+    override protected void setup(ref Display dpy)
     {
         if (globalValid() && m_buffer !is null){
             super.setup(dpy);
@@ -72,7 +72,7 @@ package:
         }
     } 
 
-    override void dispose()
+    override protected void dispose()
     {
         if (m_toplevel) {
             xdg_toplevel_destroy(m_toplevel);
