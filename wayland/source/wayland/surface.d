@@ -78,7 +78,8 @@ private:
     void delegate(float /*factor*/) cbScaleChanged;
 
 public:
-    template Iface(alias ctx) {
+    template Iface(alias ctx) 
+    {
         @property void onScaleChanged(void delegate(float /*factor*/) cb)
         {
             ctx.cbScaleChanged = cb;
@@ -113,7 +114,7 @@ package(wayland):
     }
 }
 
-//package(wayland):
+package:
 
 /++ 
  + Базовая поверхность, наследуется TopSurface, ShellSurface, SubSurface.
@@ -121,6 +122,11 @@ package(wayland):
 class Surface
 {
 protected:
+    this(RenderBuffer buf)
+    {
+        m_buffer = buf;
+    }
+
     final inout(wl_surface*) c_ptr() inout
     {
         return m_native;
@@ -147,17 +153,22 @@ protected:
 
     abstract void draw();
 
-package(wayland):
+package:
     void setup(ref Display dpy)
     {
-        m_native = enforce(wl_compositor_create_surface(dpy.compositor), 
-                            "Can't create surface");
+        if (m_buffer){
+            m_buffer.setup(dpy);
 
-        wl_surface_add_listener(m_native, &surface_lsr, null);
+            m_native = enforce(wl_compositor_create_surface(dpy.compositor), 
+                                "Can't create surface");
+
+            wl_surface_add_listener(m_native, &surface_lsr, null);
+        }
     }
 
     void dispose()
     {
+        m_buffer.dispose();
         wl_surface_destroy(m_native);
     }
 
@@ -168,6 +179,8 @@ package(wayland):
             need_redraw = false;
         }
     }
+
+    RenderBuffer m_buffer;
 
 private:
     wl_surface* m_native;

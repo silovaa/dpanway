@@ -9,26 +9,26 @@ import std.exception;
 
 enum XDGState
 {
-    resizing  = 1 << XDG_TOPLEVEL_STATE_RESIZING,
-    maximized = 1 << XDG_TOPLEVEL_STATE_MAXIMIZED,
-    activated = 1 << XDG_TOPLEVEL_STATE_ACTIVATED,
-    fullscreen = 1 << XDG_TOPLEVEL_STATE_FULLSCREEN,
-    tiled_left = 1 <<XDG_TOPLEVEL_STATE_TILED_LEFT,
-    tiled_right = 1 <<XDG_TOPLEVEL_STATE_TILED_LEFT,
-    tiled_top = 1 <<XDG_TOPLEVEL_STATE_TILED_TOP,
-    tilled_bottom = 1 <<XDG_TOPLEVEL_STATE_TILED_BOTTOM,
-    suspend = 1<<XDG_TOPLEVEL_STATE_SUSPENDED,
-    constrained_left =1 <<XDG_TOPLEVEL_STATE_CONSTRAINED_LEFT,
-    constrained_right =1 <<XDG_TOPLEVEL_STATE_CONSTRAINED_RIGHT,
-    constrained_top = 1<<XDG_TOPLEVEL_STATE_CONSTRAINED_TOP,
-    constrained_bottom = 1<<XDG_TOPLEVEL_STATE_CONSTRAINED_BOTTOM
+    resizing            = 1 << XDG_TOPLEVEL_STATE_RESIZING,
+    maximized           = 1 << XDG_TOPLEVEL_STATE_MAXIMIZED,
+    activated           = 1 << XDG_TOPLEVEL_STATE_ACTIVATED,
+    fullscreen          = 1 << XDG_TOPLEVEL_STATE_FULLSCREEN,
+    tiled_left          = 1 << XDG_TOPLEVEL_STATE_TILED_LEFT,
+    tiled_right         = 1 << XDG_TOPLEVEL_STATE_TILED_LEFT,
+    tiled_top           = 1 << XDG_TOPLEVEL_STATE_TILED_TOP,
+    tilled_bottom       = 1 << XDG_TOPLEVEL_STATE_TILED_BOTTOM,
+    suspend             = 1 << XDG_TOPLEVEL_STATE_SUSPENDED,
+    constrained_left    = 1 << XDG_TOPLEVEL_STATE_CONSTRAINED_LEFT,
+    constrained_right   = 1 << XDG_TOPLEVEL_STATE_CONSTRAINED_RIGHT,
+    constrained_top     = 1 << XDG_TOPLEVEL_STATE_CONSTRAINED_TOP,
+    constrained_bottom  = 1 << XDG_TOPLEVEL_STATE_CONSTRAINED_BOTTOM
 }
 
 class XDGTopLevel: Surface
 {
     this(RenderBuffer buf, uint w, uint h)
     {
-        m_buffer = buf;
+        super(buf);
         m_width = w; 
         m_height = h;
     }
@@ -39,7 +39,7 @@ class XDGTopLevel: Surface
     final void setAppID(const(char)* id)
     {xdg_toplevel_set_app_id(m_toplevel, id);}
 
-package(wayland):
+package:
     //Инициализация поверхностей
     //выполняем перед инициализацией протоколов
     override void setup(ref Display dpy)
@@ -69,8 +69,6 @@ package(wayland):
                                       &surface_lsr,cast(void*)this);
             
             commit();
-
-            m_buffer.setup(dpy);
         }
     } 
 
@@ -79,15 +77,12 @@ package(wayland):
         if (m_toplevel) {
             xdg_toplevel_destroy(m_toplevel);
             xdg_surface_destroy(m_xdg_surfase);
-            m_buffer.dispose();
         }
 
         super.dispose();
     }
 
     mixin GlobalFactory!XDGWmBase;
-
-    RenderBuffer m_buffer;
 
 protected:
     /** 
@@ -114,9 +109,12 @@ enum DecorMode {
 
 struct XDGDecorated
 {
-    void decorMode(DecorMode mode)
+    template Iface(alias ctx) 
     {
-        zxdg_toplevel_decoration_v1_set_mode(m_decor, mode);
+        void decorMode(DecorMode mode)
+        {
+            zxdg_toplevel_decoration_v1_set_mode(ctx.m_decor, mode);
+        }
     }
 
 package(wayland):
