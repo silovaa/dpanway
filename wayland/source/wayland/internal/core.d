@@ -90,4 +90,5 @@ extern(C) nothrow @nogc {
     uint wl_proxy_get_version(wl_proxy*);
     alias Callback = void function();
     int wl_proxy_add_listener(wl_proxy*, Callback*, void*);
+    void wl_callback_destroy(wl_callback*);
 }

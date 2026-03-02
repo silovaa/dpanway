@@ -1,9 +1,8 @@
 module wayland.xdg_shell;
 
 import wayland.internal.core;
-import wayland.surface;
 import wayland.logger;
-import wayland.display: Display;
+import wayland.display;
 
 import std.exception;
 

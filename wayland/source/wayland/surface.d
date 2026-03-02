@@ -56,21 +56,24 @@ package(wayland):
 
 private:
 
-extern(C) nothrow {
-
-void cb_preferred_scale(void* data, wp_fractional_scale_v1 *, 
-                        uint scale)
+__gshared wp_fractional_scale_v1_listener scale_lsr =
 {
-    auto sf = cast(ScaleFactor*)data;
-    float val = scale / 120.0f;
-    
-    try{
-        if (sf.cbScaleChanged)
-            sf.cbScaleChanged(val);
-    }
-    catch(Exception e)
-        Logger.error("Callback ScaleManager preferred_scale failed: %s", e.msg);
-}
+    preferred_scale: &cb_preferred_scale
+};
 
+extern(C) nothrow {
+    void cb_preferred_scale(void* data, wp_fractional_scale_v1 *, 
+                            uint scale)
+    {
+        auto sf = cast(ScaleFactor*)data;
+        float val = scale / 120.0f;
+        
+        try{
+            if (sf.cbScaleChanged)
+                sf.cbScaleChanged(val);
+        }
+        catch(Exception e)
+            Logger.error("Callback ScaleManager preferred_scale failed: %s", e.msg);
+    }
 }
 

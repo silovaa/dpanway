@@ -72,10 +72,6 @@ public:
         }
     }
 
-    enum EventT {
-        system, wayland, key, count
-    }
-
     void event_wait() 
     {
         auto ref dpy = Display.instance;
@@ -208,7 +204,7 @@ interface EventLoop
 
 interface RenderBuffer
 {
-    void setup(in Display);
+    void setup(ref Display);
     void dispose();
 
     void makeCurrent(Surface);
@@ -247,11 +243,6 @@ protected:
         m_buffer = buf;
     }
 
-    final inout(wl_surface*) c_ptr() inout
-    {
-        return m_native;
-    }
-
     final void commit()
     {
         wl_surface_commit(c_ptr);
@@ -260,6 +251,11 @@ protected:
     abstract void draw();
 
 package:
+    final inout(wl_surface*) c_ptr() inout
+    {
+        return m_native;
+    }
+    
     protected void setup(ref Display dpy)
     {
         assert(m_buffer);
@@ -296,6 +292,10 @@ private:
 
 import core.sys.linux.timerfd;
 import core.sys.posix.unistd : close, read;
+
+ enum EventT {
+    system, wayland, key, count
+}
 
 struct Timer
 {
@@ -441,11 +441,6 @@ __gshared wl_surface_listener surface_lsr =
     leave: &cb_leave,
     preferred_buffer_scale: &cb_preferred_buffer_scale,
     preferred_buffer_transform: &cb_preferred_buffer_transform
-};
-
-__gshared wp_fractional_scale_v1_listener scale_lsr =
-{
-    preferred_scale: &cb_preferred_scale
 };
 
 __gshared wl_callback_listener frame_lsr =
