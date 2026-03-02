@@ -72,6 +72,72 @@ public:
         }
     }
 
+    enum EventT {
+        system, wayland, key, count
+    }
+
+    void event_wait() 
+    {
+        auto ref dpy = Display.instance;
+        auto m_display = dpy.native;
+        auto m_fds = dpy.m_fds;
+
+        while (wl_display_prepare_read(m_display) != 0) {
+            if (wl_display_dispatch_pending(m_display) < 0)
+                throw new Exception("failed to dispatch pending Wayland events");
+        }
+
+        int ret;
+
+        while ((ret = wl_display_flush(m_display)) < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            if (errno == EAGAIN) {
+                pollfd[1] fds;
+                fds[0].fd = m_fds[EventT.wayland].fd;
+                fds[0].events = POLLOUT;
+
+                do {
+                    ret = poll(fds.ptr, 1, -1);
+                } while (ret < 0 && errno == EINTR);
+            }
+        }
+
+        if (ret < 0) {
+            wl_display_cancel_read(m_display);
+            throw new Exception("failed to display flush");
+        }
+
+        do {
+            ret = poll(m_fds.ptr, EventT.count - 1, -1); //To do add system interrupts
+        } while (ret < 0 && errno == EINTR);
+
+        if (ret < 0) {
+            if (m_fds[EventT.wayland].revents & POLLHUP)
+                throw new Exception("disconnected from wayland");
+
+            wl_display_cancel_read(m_display);
+            throw new Exception("failed to poll():");
+        }
+
+        if (m_fds[EventT.wayland].revents & POLLIN) {
+
+            if (wl_display_read_events(m_display) < 0)
+                throw new Exception("failed to read Wayland events");
+        }
+        else
+            wl_display_cancel_read(m_display);
+
+        if (wl_display_dispatch_pending(m_display) < 0)
+            throw new Exception("failed to dispatch pending Wayland events");
+
+        if (m_fds[EventT.key].revents & POLLIN) {
+            dpy.kb_repeat.emit(m_fds[EventT.key].fd);
+        }
+    }
+
 package:
     static wl_display* native;
 
@@ -88,6 +154,7 @@ package:
     }
 
     Timer kb_repeat;
+    EventLoop event_loop;
 
 private:
     static Display inst;
@@ -133,73 +200,99 @@ private:
     }
 }
 
-enum EventT {
-    system, wayland, key, count
+interface EventLoop
+{
+    void add(Surface);
+    void run();
 }
 
-void event_wait() 
+interface RenderBuffer
 {
-    auto ref dpy = Display.instance;
-    auto m_display = dpy.native;
-    auto m_fds = dpy.m_fds;
+    void setup(in Display);
+    void dispose();
 
-    while (wl_display_prepare_read(m_display) != 0) {
-        if (wl_display_dispatch_pending(m_display) < 0)
-            throw new Exception("failed to dispatch pending Wayland events");
-    }
-
-    int ret;
-
-    while ((ret = wl_display_flush(m_display)) < 0) {
-        if (errno == EINTR) {
-            continue;
-        }
-
-        if (errno == EAGAIN) {
-            pollfd[1] fds;
-            fds[0].fd = m_fds[EventT.wayland].fd;
-            fds[0].events = POLLOUT;
-
-            do {
-                ret = poll(fds.ptr, 1, -1);
-            } while (ret < 0 && errno == EINTR);
-        }
-    }
-
-    if (ret < 0) {
-        wl_display_cancel_read(m_display);
-        throw new Exception("failed to display flush");
-    }
-
-    do {
-        ret = poll(m_fds.ptr, EventT.count - 1, -1); //To do add system interrupts
-    } while (ret < 0 && errno == EINTR);
-
-    if (ret < 0) {
-        if (m_fds[EventT.wayland].revents & POLLHUP)
-            throw new Exception("disconnected from wayland");
-
-        wl_display_cancel_read(m_display);
-        throw new Exception("failed to poll():");
-    }
-
-    if (m_fds[EventT.wayland].revents & POLLIN) {
-
-        if (wl_display_read_events(m_display) < 0)
-            throw new Exception("failed to read Wayland events");
-    }
-    else
-        wl_display_cancel_read(m_display);
-
-    if (wl_display_dispatch_pending(m_display) < 0)
-        throw new Exception("failed to dispatch pending Wayland events");
-
-    if (m_fds[EventT.key].revents & POLLIN) {
-        dpy.kb_repeat.emit(m_fds[EventT.key].fd);
-    }
+    void makeCurrent(Surface);
+    bool isValid();
+    void resize(uint, uint);
+    void flush();
 }
 
 package:
+
+/++ 
+ + Базовая поверхность, наследуется TopSurface, ShellSurface, SubSurface.
+ +/
+class Surface
+{
+    final bool isClosed()
+    { return m_native is null;}
+
+    final void refresh()
+    {
+        if (m_farame) {
+            wl_callback_destroy(m_farame);
+        }
+        
+        // Создаем новый
+        m_farame = wl_surface_frame(c_ptr);
+        wl_callback_add_listener(m_farame, &frame_lsr, cast(void*)this);
+        
+        // Сбрасываем флаг готовности
+        //need_redraw = false;
+    }
+
+protected:
+    this(RenderBuffer buf)
+    {
+        m_buffer = buf;
+    }
+
+    final inout(wl_surface*) c_ptr() inout
+    {
+        return m_native;
+    }
+
+    final void commit()
+    {
+        wl_surface_commit(c_ptr);
+    }
+
+    abstract void draw();
+
+package:
+    protected void setup(ref Display dpy)
+    {
+        assert(m_buffer);
+        m_buffer.setup(dpy);
+
+        m_native = enforce(wl_compositor_create_surface(dpy.compositor), 
+                            "Can't create surface");
+
+        wl_surface_add_listener(m_native, &surface_lsr, null);
+    }
+
+    protected void dispose()
+    {
+        m_buffer.dispose();
+        wl_surface_destroy(m_native);
+        m_native = null;
+    }
+
+    final void drawProcess()
+    {
+        if (need_redraw) {
+            draw();
+            need_redraw = false;
+        }
+    }
+
+    RenderBuffer m_buffer;
+
+private:
+    wl_surface* m_native;
+    wl_callback* m_farame;
+    bool need_redraw;
+}
 
 import core.sys.linux.timerfd;
 import core.sys.posix.unistd : close, read;
@@ -245,7 +338,6 @@ private:
 }
 
 private:
-
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Display impl
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -314,30 +406,79 @@ struct GlobalIterator
 }
 
 extern (C) nothrow {
+    void handle_global(void* data, wl_registry* registry,
+                        uint name, const(char)* iface, uint ver) 
+    {
+        try{
+            auto iter = cast(GlobalIterator*) data;
 
-void handle_global(void* data, wl_registry* registry,
-                    uint name, const(char)* iface, uint ver) 
-{
-    try{
-        auto iter = cast(GlobalIterator*) data;
+            if (iter.find_compositor(iface))
+                iter.compositor =
+                    cast(wl_compositor*)wl_registry_bind(registry, name, 
+                                                        &wl_compositor_interface, ver);
 
-        if (iter.find_compositor(iface))
-            iter.compositor =
-                cast(wl_compositor*)wl_registry_bind(registry, name, 
-                                                    &wl_compositor_interface, ver);
-
-        else
-            if (auto item = iter.find(iface))
-                item.bind(registry, name, ver);
+            else
+                if (auto item = iter.find(iface))
+                    item.bind(registry, name, ver);
+        }
+        catch(Exception)
+            Logger.error("fatal error in registry bind");
     }
-    catch(Exception)
-        Logger.error("fatal error in registry bind");
+
+    void handle_global_rem(void *data, wl_registry *registry, uint name) 
+    {
+        //writeln("handle_global_rem");
+    }
 }
 
-void handle_global_rem(void *data, wl_registry *registry, uint name) 
+/////////////////////////////////////////////////////////////////////////////////////////////////
+// Surface impl
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
+__gshared wl_surface_listener surface_lsr =
 {
-    //writeln("handle_global_rem");
-}
+    enter: &cb_enter,
+    leave: &cb_leave,
+    preferred_buffer_scale: &cb_preferred_buffer_scale,
+    preferred_buffer_transform: &cb_preferred_buffer_transform
+};
+
+__gshared wp_fractional_scale_v1_listener scale_lsr =
+{
+    preferred_scale: &cb_preferred_scale
+};
+
+__gshared wl_callback_listener frame_lsr =
+{
+    &cb_frame
+};
+
+extern(C) nothrow {
+    void cb_frame(void* data, wl_callback* callback, uint)
+    {
+        auto surf = cast(Surface) data;
+
+        wl_callback_destroy(callback);
+        surf.m_farame = null;
+
+        surf.need_redraw = true;
+    }
+
+    void cb_enter(void* data, wl_surface* s, wl_output* o) 
+    {
+                    // Пусто
+    }
+
+    void cb_leave(void *data, wl_surface *wl_surface,
+                wl_output *output){}
+
+    void cb_preferred_buffer_scale(void *data,
+                            wl_surface *wl_surface,
+                            int factor){}
+
+    void cb_preferred_buffer_transform(void *data,
+                            wl_surface *wl_surface,
+                            uint transform){}
 }
 
 
