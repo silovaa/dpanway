@@ -81,7 +81,7 @@ package:
         super.dispose();
     }
 
-    mixin GlobalFactory!XDGWmBase;
+    //mixin GlobalFactory!XDGWmBase;
 
 protected:
     /** 
@@ -137,7 +137,7 @@ package(wayland):
         }
     }
 
-    mixin GlobalFactory!XDGDecorationManager;
+    //mixin GlobalFactory!XDGDecorationManager;
 
 private:
     zxdg_toplevel_decoration_v1* m_decor;
@@ -162,6 +162,15 @@ final class XDGWmBase: GlobalProxy!(xdg_wm_base, xdg_wm_base_interface, XDG_WM_B
 alias XDGDecorationManager = GlobalProxy!(zxdg_decoration_manager_v1, 
                                         zxdg_decoration_manager_v1_interface, 
                                         ZXDG_DECORATION_MANAGER_V1_DESTROY);
+
+XDGWmBase xdg_base;
+XDGDecorationManager decoration_mgr;
+
+static this()
+{
+    global ~= xdg_base;
+    global ~= decoration_mgr;
+}
 
 extern (C) nothrow {
 
