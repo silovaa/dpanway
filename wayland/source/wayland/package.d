@@ -21,6 +21,20 @@ struct Protocols(T...)
         // Каждый протокол должен иметь template Iface(alias ctx) {набор методов}
         mixin Type.Iface!(data[i]);
     }
+
+    private void setup(Surface surf)
+    {
+        static foreach (i, Type; T) {
+            data[i].setup(this, surf);
+        }
+    }
+
+    private void dispose()
+    {
+        static foreach_reverse (i, Type; T) {
+            data[i].dispose();
+        }
+    }
 }
 
 //концепт для рендера
@@ -32,26 +46,49 @@ template isRender(T) {
     });
 }
 
-class TopWindow(Render, Proto): TopSurface
-    if (isRender!Render && is(Proto : Protocols!Args, Args...))
+// import std.meta : staticIndexOf;
+
+// template TopLayerProtocols(T...) 
+//     if (staticIndexOf!(Surfce, T) == -1 && 
+//         staticIndexOf!(XDGToplayer, T) == -1) 
+// {
+//     alias TopLayerProtocols = Protocols!(Surfce, XDGToplayer, T);
+// }
+
+alias AllWindowProtocols = Protocols!(ScaleFactor, 
+                                    XDGDecorated);
+
+/++ 
+ * Окно верхнего уровня, использует все реализованные протоколы
+ * ?? зачем может понадобиться менять состав протоколов?
+ * ?? возможно нужно будет сделать базовый класс для разных типов окон
+ *  Surface создает поверхность и добавляет себя в цикл как LoopTask
+ +/
+class TopWindow(Render): XDGToplayer!(Render, AllWindowProtocols), Seat
+    if (
+        isRender!Render //&& 
+        // is(Proto : Protocols!(Surfce, XDGToplayer, Args), Args...) && 
+        // (staticIndexOf!(Surfce, Args) == -1) && 
+        // (staticIndexOf!(XDGToplayer, Args) == -1)
+    )
 {
-    Protocols!(XDGTopLevel, Args) protocols;
-    alias protocols this;
+    // Protocols!AllWindowProtocols protocols;
+    // alias protocols this;
 
-    private Render render;
+    // private Render render_buf;
 
-    this()
+    this(uint w, uint h)
     {
-        if (Display.native is null)
-            Display.connect!Proto();
-        
-        render.setup(cast(void*)Display.native);
-        setup(Display.instance);
-        protocols.setup(this);
+        // protocols.setup(this);
+        // render_bufer.setup(this, w, h);
+
+        // protocols.get!XDGToplayer.bind(this);
+        // protocols.get!Seat.bind(this);
+        onScaleChanged = scaleChanged;
     }
 
 protected:
-    override void configure()
+    override void configure(uint w, uint h, uint state)
     {
 
     }
@@ -61,7 +98,24 @@ protected:
 
     }
 
+private:
+    void scaleChanged(float factor)
+    {
+        scale = factor;
+        refresh();
+    }
+
+    float scale;
 }
 
-//alias TopWindow(Render, Proto) = BaseWindow!(TopSurface, Render, Proto);
+//может лучше RenderBuffer создавать динамически и использовать через интерфейс??
+alias EGLSinglWindow = TopWindow!(SinglWM, 
+                                EGLRenderBuffer, 
+                                AllWindowProtocols);
+
+alias EGLMultiWindow = TopWindow!(MultiWM, 
+                                EGLRenderBuffer, 
+                                AllWindowProtocols);
+
+//To do EGLSinglWindow
 

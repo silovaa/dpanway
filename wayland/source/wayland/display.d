@@ -6,7 +6,6 @@ import std.exception;
 import std.string;
 
 import wayland.internal.core;
-import wayland.input_layer;
 import wayland.logger;
 import std.stdio;
 
@@ -18,50 +17,19 @@ struct Display
 public:
     @disable this(this);
 
-    static void connect(T)(const(char)* name = null)
+    static ref Display connect(const(char)* name = null)
     {
         assert(!native, "Display already initialized");
-        Global[] globals;
-        
-        // Проверка, что T — это структура (ваша struct Protocols)
-        static if (is(T == struct)) 
-        {
-            static foreach (m; __traits(allMembers, T)) 
-            {
-                // Используем фигурные скобки для изоляции области видимости каждой итерации
-                {
-                    // Получаем тип поля 'm' внутри структуры T
-                    alias FieldType = typeof(__traits(getMember, T.init, m));
-
-                    // Проверяем наличие статического метода create у типа поля
-                    static if (__traits(hasMember, FieldType, "create")) 
-                    {
-                        // Вызываем статический метод и регистрируем протокол
-                        auto g = FieldType.create();
-                        if (g !is null) 
-                        {
-                            globals ~= g;
-                            
-                            import std.stdio : writefln;
-                            debug writefln("Протокол %s (тип %s) успешно зарегистрирован", m, FieldType.stringof);
-                        }
-                    }
-                }
-            }
-        }
-        else 
-        {
-            static assert(0, "connect ожидает структуру Protocols в качестве аргумента шаблона");
-        }
     
-        inst = Display(name, globals);
+        inst = Display(name);
+        return inst;
     }
 
     void dispose()
     {
         if (native) {
             
-            foreach(global; m_globals){ 
+            foreach(global; globals){ 
                 global.dispose();
             }
 
@@ -72,20 +40,16 @@ public:
         }
     }
 
-    void event_wait() 
+    void event_wait(int time = -1) 
     {
-        auto ref dpy = Display.instance;
-        auto m_display = dpy.native;
-        auto m_fds = dpy.m_fds;
-
-        while (wl_display_prepare_read(m_display) != 0) {
-            if (wl_display_dispatch_pending(m_display) < 0)
+        while (wl_display_prepare_read(native) != 0) {
+            if (wl_display_dispatch_pending(native) < 0)
                 throw new Exception("failed to dispatch pending Wayland events");
         }
 
         int ret;
 
-        while ((ret = wl_display_flush(m_display)) < 0) {
+        while ((ret = wl_display_flush(native)) < 0) {
             if (errno == EINTR) {
                 continue;
             }
@@ -102,36 +66,41 @@ public:
         }
 
         if (ret < 0) {
-            wl_display_cancel_read(m_display);
+            wl_display_cancel_read(native);
             throw new Exception("failed to display flush");
         }
 
         do {
-            ret = poll(m_fds.ptr, EventT.count - 1, -1); //To do add system interrupts
+            ret = poll(m_fds.ptr, EventT.count - 1, time); //To do add system interrupts
         } while (ret < 0 && errno == EINTR);
 
         if (ret < 0) {
             if (m_fds[EventT.wayland].revents & POLLHUP)
                 throw new Exception("disconnected from wayland");
 
-            wl_display_cancel_read(m_display);
+            wl_display_cancel_read(native);
             throw new Exception("failed to poll():");
         }
 
         if (m_fds[EventT.wayland].revents & POLLIN) {
 
-            if (wl_display_read_events(m_display) < 0)
+            if (wl_display_read_events(native) < 0)
                 throw new Exception("failed to read Wayland events");
         }
         else
-            wl_display_cancel_read(m_display);
+            wl_display_cancel_read(native);
 
-        if (wl_display_dispatch_pending(m_display) < 0)
+        if (wl_display_dispatch_pending(native) < 0)
             throw new Exception("failed to dispatch pending Wayland events");
 
         if (m_fds[EventT.key].revents & POLLIN) {
-            dpy.kb_repeat.emit(m_fds[EventT.key].fd);
+            key_timer.read(m_fds[EventT.key].fd);
         }
+    }
+
+    void start()
+    {
+    
     }
 
 package:
@@ -144,24 +113,25 @@ package:
         return inst;
     }
 
-    static wl_compositor* compositor()
+    static wl_compositor* compositor() nothrow @nogc
     {
         return instance.m_compositor;
     }
 
-    Timer kb_repeat;
-    EventLoop event_loop;
+    KeyTimer key_timer;
 
 private:
     static Display inst;
-    Global[] m_globals;
-
+    
     wl_registry*   m_registry;  
     wl_compositor* m_compositor;
 
     pollfd[EventT.count] m_fds;
 
-    this(const(char)* name, Global[] gs)
+    LoopTask[] m_task;
+    uint m_active_task;
+
+    this(const(char)* name)
     {
         native = enforce(wl_display_connect(name), 
                             "failed to create display");
@@ -169,7 +139,7 @@ private:
 	    m_registry = enforce(wl_display_get_registry(native),
                         "failed to create registry");
 
-        auto iter = GlobalIterator(gs);
+        auto iter = GlobalIterator(globals);
 
         __gshared wl_registry_listener lsr = {
             global: &handle_global,
@@ -185,7 +155,7 @@ private:
         m_compositor = enforce(iter.compositor, 
 		                    "compositor doesn't support wl_compositor");
 
-        m_globals = iter.protocols;
+        globals = iter.protocols;
 
         m_fds[EventT.wayland].fd = wl_display_get_fd(native);
 		m_fds[EventT.wayland].events = POLLIN;
@@ -196,11 +166,19 @@ private:
     }
 }
 
-interface EventLoop
+interface LoopTask
 {
-    void add(Surface);
-    void run();
+    //void activate(ref Display);
+    //void deactivate();
+    bool isClosed();
+    void invoke();   
 }
+
+// interface EventLoop
+// {
+//     void add(LoopTask);
+//     void run();
+// }
 
 interface RenderBuffer
 {
@@ -217,8 +195,10 @@ package:
 
 /++ 
  + Базовая поверхность, наследуется TopSurface, ShellSurface, SubSurface.
+ + Surface(BUF) - не очень хорошо, инициализировать буфер нужно после
+ + протоколов, а протоколы в дочернем классе
  +/
-class Surface
+class Surface: LoopTask
 {
     final bool isClosed()
     { return m_native is null;}
@@ -238,9 +218,16 @@ class Surface
     }
 
 protected:
-    this(RenderBuffer buf)
+    this()
     {
-        m_buffer = buf;
+        auto ref dpy = Display.instance;
+        m_native = enforce(wl_compositor_create_surface(dpy.compositor), 
+                            "Can't create surface");
+
+        wl_surface_add_listener(m_native, &surface_lsr, null);
+
+        dpy.m_task ~= this;
+        dpy.m_active_task++;
     }
 
     final void commit()
@@ -256,38 +243,42 @@ package:
         return m_native;
     }
     
-    protected void setup(ref Display dpy)
+    // final void setup(ref Display dpy)
+    // {
+    //     m_native = enforce(wl_compositor_create_surface(dpy.compositor), 
+    //                         "Can't create surface");
+
+    //     wl_surface_add_listener(m_native, &surface_lsr, null);
+
+    //     assert(m_buffer);
+    //     m_buffer.setup(dpy, this);
+    // }
+
+    final void dispose()
     {
-        assert(m_buffer);
-        m_buffer.setup(dpy);
+        if (m_native){
+            if (m_frame) {
+                wl_callback_destroy(m_frame);
+            }
 
-        m_native = enforce(wl_compositor_create_surface(dpy.compositor), 
-                            "Can't create surface");
-
-        wl_surface_add_listener(m_native, &surface_lsr, null);
-    }
-
-    protected void dispose()
-    {
-        m_buffer.dispose();
-        wl_surface_destroy(m_native);
-        m_native = null;
-    }
-
-    final void drawProcess()
-    {
-        if (need_redraw) {
-            draw();
-            need_redraw = false;
+            wl_surface_destroy(m_native);
+            m_native = null;
+            Display.instance.m_active_task--;
         }
     }
 
-    RenderBuffer m_buffer;
-
 private:
     wl_surface* m_native;
-    wl_callback* m_farame;
+    wl_callback* m_frame;
     bool need_redraw;
+
+    override void invoke()
+    {
+        if (need_redraw) {
+            need_redraw = false;
+            draw();
+        }
+    }
 }
 
 import core.sys.linux.timerfd;
@@ -299,15 +290,17 @@ import core.sys.posix.unistd : close, read;
 
 struct Timer
 {
-    this(KeyMapper mapper)
+    void attach(void delegate() func)
     {
-        kb_mapper = mapper;
+        assert(Display.instance.m_fds[EventT.key].fd >= 0);
+
+        emit = func;
         Display.instance.m_fds[EventT.key].fd = 
             timerfd_create(CLOCK_MONOTONIC,
                            TFD_CLOEXEC | TFD_NONBLOCK);
     }
 
-    ~this() nothrow @nogc
+    void detach()
     {
         int fd = Display.instance.m_fds[EventT.key].fd;
         if (fd >= 0){
@@ -316,23 +309,21 @@ struct Timer
         }
     }
 
-    void set_time(ref itimerspec tspec, InputLayer input) nothrow @nogc
+    void set_time(ref itimerspec tspec) nothrow @nogc
     {
-        kb_input = input;
         auto fd = Display.instance.m_fds[EventT.key].fd;
         timerfd_settime(fd, 0, &tspec, null);
     }
 
 private:
-    InputLayer kb_input;
-    KeyMapper kb_mapper;
+    void delegate() emit;
 
-    void emit(int fd) 
+    void read(int fd) 
     {
         ulong repeats;
         if (read(fd, &repeats, repeats.sizeof) == 8) {
             for (ulong i = 0; i < repeats; i++)
-                kb_input.key(kb_mapper);
+                emit();
         }
     }
 }

@@ -41,12 +41,12 @@ class XDGTopLevel: Surface
 package:
     //Инициализация поверхностей
     //выполняем перед инициализацией протоколов
-    override protected void setup(ref Display dpy)
+    void setup(ref Display dpy)
     {
-        if (globalValid() && m_buffer !is null){
+        if (xdg_base.isValid() && m_buffer !is null){
             super.setup(dpy);
             
-            m_xdg_surfase = enforce(xdg_wm_base_get_xdg_surface(m_global.c_ptr, 
+            m_xdg_surfase = enforce(xdg_wm_base_get_xdg_surface(xdg_base.c_ptr, 
                                                                 c_ptr),
                                     "Can't create xdg surface");
                 
@@ -65,23 +65,24 @@ package:
                 configure: &cb_xdgconfigure
             };
             xdg_surface_add_listener (m_xdg_surfase, 
-                                      &surface_lsr,cast(void*)this);
+                                      &surface_lsr, cast(void*)this);
             
             commit();
         }
+
+        scope(falure) dispose();
     } 
 
-    override protected void dispose()
+    void dispose()
     {
-        if (m_toplevel) {
+        if (m_toplevel)
             xdg_toplevel_destroy(m_toplevel);
+
+        if (m_xdg_surfase)
             xdg_surface_destroy(m_xdg_surfase);
-        }
 
         super.dispose();
     }
-
-    //mixin GlobalFactory!XDGWmBase;
 
 protected:
     /** 
@@ -119,10 +120,10 @@ struct XDGDecorated
 package(wayland):
     void setup(XDGTopLevel prot) 
     {
-        if (globalValid()){
+        if (decoration_mgr.isValid()){
            
             m_decor = zxdg_decoration_manager_v1_get_toplevel_decoration(
-                m_global.c_ptr,
+                decoration_mgr.c_ptr,
                 prot.m_toplevel);
 
             zxdg_toplevel_decoration_v1_set_mode(m_decor, DecorMode.ServerSide);
@@ -136,8 +137,6 @@ package(wayland):
             m_decor = null;
         }
     }
-
-    //mixin GlobalFactory!XDGDecorationManager;
 
 private:
     zxdg_toplevel_decoration_v1* m_decor;
@@ -168,8 +167,8 @@ XDGDecorationManager decoration_mgr;
 
 static this()
 {
-    global ~= xdg_base;
-    global ~= decoration_mgr;
+    xdg_base = new XDGWmBase;
+    decoration_mgr = new XDGDecorationManager;
 }
 
 extern (C) nothrow {

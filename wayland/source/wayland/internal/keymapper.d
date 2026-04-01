@@ -1,6 +1,14 @@
-module wayland.input_layer;
+module wayland.internal.keymapper;
 
-import wayland.internal.core;
+import xkbmapper;
+import core.sys.posix.sys.mman;
+import std.exception : enforce;
+import std.format : format;
+import core.stdc.errno : errno;
+import core.stdc.string : strerror;
+import std.conv : to;
+
+import wayland.logger;
 
 enum ModSet {locked, effective, consumed}
 
@@ -17,79 +25,6 @@ interface KeyMapper
                     uint mods_locked,
                     uint group);
 }
-
-struct Pointer
-{
-    import std.typecons: Tuple, tuple;
-
-    Tuple!(int, int) toInt() const
-    {
-        return tuple(wl_fixed_to_int(x),
-                     wl_fixed_to_int(y));
-    }
-
-    Tuple!(double, double) toDouble() const
-    {
-        return tuple(wl_fixed_to_double(x),
-                     wl_fixed_to_double(y));
-    }
-
-    bool inBound(int sx, int sy, int sw, int sh) const
-    {
-        auto res = toInt();
-        return sx > res[0] && sw < res[0] && sy > res[1] && sh < res[1];
-    }
-
-package(wayland):
-    this(wl_fixed_t new_x, wl_fixed_t new_y)
-    {
-        x = new_x; y = new_y;
-    }
-
-private:
-    wl_fixed_t x, y;
-}
-
-//from input-event-codes.h
-//зависит от платформы, хотя на Linux и FreeBSD одинаковые
-enum PointerButton {
-    LEFT    =   0x110,
-    RIGHT   =   0x111,
-    MIDDLE	=   0x112,
-    SIDE    =	0x113,
-    EXTRA	=	0x114,
-    FORWARD	=	0x115,
-    BACK    =	0x116,
-    ASK		=   0x117
-}
-
-enum PointerState { enter, leave}
-
-interface InputLayer
-{
-    void keyFocused(bool);
-    void key(const KeyMapper);
-    void point(PointerState, Pointer);
-    void point_motion(uint, Pointer);
-
-    void click(PointerButton /*button*/ ,
-                bool         /*pressed*/,
-                int          /*count*/,
-                uint         /*key_mod*/);
-    void scroll(int time, int axis, double value);
-}
-
-package(wayland):
-
-import xkbmapper;
-import core.sys.posix.sys.mman;
-import std.exception : enforce;
-import std.format : format;
-import core.stdc.errno : errno;
-import core.stdc.string : strerror;
-import std.conv : to;
-
-import wayland.logger;
 
 final class XkbMapper: KeyMapper
 {
@@ -204,4 +139,3 @@ private:
     uint keysymbol;
     char[16] utf8buf;
 }
-

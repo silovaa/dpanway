@@ -4,44 +4,81 @@ import wayland.internal.core;
 import wayland.display;
 import wayland.logger;
 
-import wayland.surface;
-import wayland.input_layer;
+import wayland.internal.keymapper;
 
-struct Seat
+alias KeyMapper = wayland.internal.keymapper.KeyMapper;
+alias ModSet = wayland.internal.keymapper.ModSet;
+
+struct Pointer
 {
-    void bind(T)(ref ProtocolStore!T prot, InputLayer handler)
+    import std.typecons: Tuple, tuple;
+
+    Tuple!(int, int) toInt() const
     {
-        if (globalValid()){
-            auto ptr = prot.surface.c_ptr;
-            if (ptr !is null)
-                wl_surface_set_user_data(ptr, cast(void*)handler);
-            else
-                input = handler;
-        }
+        return tuple(wl_fixed_to_int(x),
+                     wl_fixed_to_int(y));
+    }
+
+    Tuple!(double, double) toDouble() const
+    {
+        return tuple(wl_fixed_to_double(x),
+                     wl_fixed_to_double(y));
+    }
+
+    bool inBound(int sx, int sy, int sw, int sh) const
+    {
+        auto res = toInt();
+        return sx > res[0] && sw < res[0] && sy > res[1] && sh < res[1];
     }
 
 package(wayland):
-
-    void setup(T)(ref ProtocolStore!T prot)
+    this(wl_fixed_t new_x, wl_fixed_t new_y)
     {
-        if (globalValid()){
-
-            if (input is null) return;
-
-            wl_surface_set_user_data(prot.surface.c_ptr, cast(void*)input);
-        }
+        x = new_x; y = new_y;
     }
 
-    mixin GlobalFactory!SeatGlobal;
+private:
+    wl_fixed_t x, y;
+}
 
-    InputLayer input;
+//from input-event-codes.h
+//зависит от платформы, хотя на Linux и FreeBSD одинаковые
+enum PointerButton {
+    LEFT    =   0x110,
+    RIGHT   =   0x111,
+    MIDDLE	=   0x112,
+    SIDE    =	0x113,
+    EXTRA	=	0x114,
+    FORWARD	=	0x115,
+    BACK    =	0x116,
+    ASK		=   0x117
+}
+
+enum PointerState { enter, leave}
+
+interface Seat
+{
+    void keyFocused(bool);
+    void key(const KeyMapper);
+    void point(PointerState, Pointer);
+    void point_motion(uint, Pointer);
+
+    void click(PointerButton /*button*/ ,
+                bool         /*pressed*/,
+                int          /*count*/,
+                uint         /*key_mod*/);
+    void scroll(int time, int axis, double value);
+
+    final void attach(Surface surf)
+    {
+        wl_surface_set_user_data(surf.c_ptr, cast(void*)this);
+    }
 }
 
 private:
 
 final class SeatGlobal: GlobalProxy!(wl_seat, wl_seat_interface, WL_SEAT_RELEASE)
 {
-protected:
     override void bind(wl_registry* reg, uint name_id, uint vers) 
     {
         super.bind(reg, name_id, vers); 
@@ -54,12 +91,20 @@ protected:
     {
         if (m_pointer !is null) 
             wl_pointer_release(m_pointer);
-        if (m_keyboard !is null) 
+        if (m_keyboard !is null) {
+            Display.instance.key_timer.detach();
             wl_keyboard_release(m_keyboard);
+        }
         super.dispose();
     }
 
+    void key_emit()
+    {
+        m_current_input(m_mapper);
+    }
+
     KeyMapper m_mapper;
+    Seat m_current_input;
     wl_keyboard* m_keyboard;
     
     // default delay = 250ms rate = 2 characters per second
@@ -75,6 +120,13 @@ protected:
     time_t m_stamp;
     uint m_last_released_button;
     int m_count_click;
+}
+
+SeatGlobal seat;
+
+static this()
+{
+    seat = new SeatGlobal;
 }
 
 __gshared wl_seat_listener seat_listener = {
@@ -94,7 +146,6 @@ __gshared wl_keyboard_listener keyboard_listener = {
 __gshared wl_pointer_listener pointer_listener = {
     enter:  &cb_pointer_enter,
     leave:  &cb_pointer_leave,
-    motion: &cb_pointer_motion,
     button: &cb_pointer_button,
     axis  : &cb_pointer_axis,
     frame : &cb_pointer_frame,                  //since 5
@@ -111,7 +162,6 @@ import std.format: format;
 
 void cb_capabilities(void*, wl_seat* wlseat, uint flags) 
 {
-    auto seat = Seat.get();
     try{
         if ((flags & WL_SEAT_CAPABILITY_POINTER) != 0) {
 
@@ -139,6 +189,7 @@ void cb_capabilities(void*, wl_seat* wlseat, uint flags)
         }
         else 
             if (seat.m_keyboard !is null) {
+                Display.instance.key_timer.detach();
                 wl_keyboard_release(seat.m_keyboard);
                 seat.m_keyboard = null;
             }
@@ -158,13 +209,11 @@ void cb_name(void*, wl_seat*, const(char)* name) @nogc
 void cb_kbkeymap (void *data, wl_keyboard* wlkb,
                 uint kbformat, int fd, uint size)
 {
-    auto seat = Seat.get();
-
     if (kbformat == WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1){
 
         try {
             seat.m_mapper = new XkbMapper(fd, size);
-            Display.instance.kb_repeat = Timer(seat.m_mapper);
+            Display.instance.key_timer.attach(&seat.key_emit);
         }
         catch(Exception e){
             Logger.error("KEYMAP_FORMAT failed: %s", e.msg);
@@ -181,12 +230,12 @@ void cb_kbenter(void *data, wl_keyboard* wlkb, uint serial,
             wl_surface *surface, wl_array* keys)
 {            
     try{
-        auto input = cast(InputLayer)
+        auto input = cast(Seat)
             wl_surface_get_user_data(surface);
 
         if(input !is null){
         
-            wl_keyboard_set_user_data(wlkb, cast(void*)input);
+            seat.m_current_input = input;
 
             input.keyFocused(true);
             //TO DO развернуть и передать wl_array* keys
@@ -199,15 +248,15 @@ void cb_kbenter(void *data, wl_keyboard* wlkb, uint serial,
 void cb_kbleave(void *data, wl_keyboard* wlkb, uint, wl_surface*)
 {
     try{
-        auto input = cast(InputLayer)data;
+        auto input = seat.m_current_input;
 
         if (input !is null){
 
-            wl_keyboard_set_user_data(wlkb, null);
+            //wl_keyboard_set_user_data(wlkb, null);
             input.keyFocused(false);
 
             itimerspec timer;
-            Display.instance.kb_repeat.set_time(timer, null);
+            Display.instance.key_timer.set_time(timer);
         }
     }
     catch(Exception e)
@@ -218,16 +267,14 @@ void cb_kbkey(void* data, wl_keyboard*, uint /*serial*/,
               uint time, uint key, uint state)
 {
     try {
-        auto input = cast(InputLayer)data;
+        auto input = seat.m_current_input;
         
         if (input !is null){
 
-            auto mapper = Seat.get.m_mapper;
+            auto mapper = input.m_mapper;
             itimerspec spec;
 
             if (state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-
-                auto seat = Seat.get();
 
                 if (mapper.mayRepeats(key)){
                     spec.it_value.tv_sec = seat.delay_sec;
@@ -241,7 +288,7 @@ void cb_kbkey(void* data, wl_keyboard*, uint /*serial*/,
                     input.key(mapper);
             }
 
-            Display.instance.kb_repeat.set_time(spec, input);
+            Display.instance.key_timer.set_time(spec);
         }
     }
     catch(Exception e)
@@ -255,7 +302,7 @@ void cb_kbmodifiers(void*, wl_keyboard*, uint /*serial*/,
                         uint group)
 {
     try{
-        Seat.get.m_mapper.updateMask(mods_depressed, mods_latched, mods_locked, group);
+        seat.m_mapper.updateMask(mods_depressed, mods_latched, mods_locked, group);
     }
     catch(Exception e)
         Logger.error("Callback keyboerd modifiers failed: %s", e.msg);
@@ -264,8 +311,6 @@ void cb_kbmodifiers(void*, wl_keyboard*, uint /*serial*/,
 void cb_kbrepeat_info(void*, wl_keyboard*,
                           int rate, int delay)
 {
-    auto seat = Seat.get;
-
     /**
     * rate - generation speed (number of characters in sec)
     * delay - number of ms during which you need to hold the key before the repeat starts
@@ -301,7 +346,7 @@ void cb_pointer_enter(void*, wl_pointer *pointer,
     if (surface is null) return;
 
     try{
-        auto input = cast(InputLayer) wl_surface_get_user_data(surface);
+        auto input = cast(Seat) wl_surface_get_user_data(surface);
 
         if (input !is null){
             wl_pointer_set_user_data(pointer, cast(void*)input);
@@ -316,7 +361,7 @@ void cb_pointer_leave(void *data, wl_pointer *pointer,
                 uint serial, wl_surface*)
 {
     try{
-        auto input = cast(InputLayer)data;
+        auto input = cast(Seat)data;
         if (input !is null) {
 
             input.point(PointerState.leave, Pointer());
@@ -331,7 +376,7 @@ void cb_pointer_motion (void *data, wl_pointer*,
                 uint time, wl_fixed_t sx, wl_fixed_t sy)
 {
     try{
-        auto input = cast(InputLayer)data;
+        auto input = cast(Seat)data;
         if (input !is null)
             input.point_motion(time, Pointer(sx, sy));
     }
@@ -344,7 +389,7 @@ void cb_pointer_button(void *data, wl_pointer*,
             uint state)
 {
     try{
-        auto input = cast(InputLayer)data;
+        auto input = cast(Seat)data;
         if (input !is null){
 
             import core.sys.posix.time : posix_time = timespec;
@@ -384,7 +429,7 @@ void cb_pointer_axis(void* data, wl_pointer*,
                uint time, uint axis, wl_fixed_t value)
 {
     try{
-        auto input = cast(InputLayer)data;
+        auto input = cast(Seat)data;
         if (input !is null){
     
             input.scroll(time, axis, wl_fixed_to_double(value));

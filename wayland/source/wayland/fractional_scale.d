@@ -1,23 +1,11 @@
-module wayland.surface;
+module wayland.fractional_scale;
 
-import wayland.display;
+import wayland.display: Surface;
 import wayland.internal.core;
 import wayland.logger;
 
 struct ScaleFactor
 {
-private:
-    alias ScaleManager = GlobalProxy!(wp_fractional_scale_manager_v1,
-                                    wp_fractional_scale_manager_v1_interface,
-                                    WP_FRACTIONAL_SCALE_MANAGER_V1_DESTROY);
-    
-    wp_fractional_scale_v1* m_fscale;
-
-    mixin GlobalFactory!ScaleManager;
-
-    void delegate(float /*factor*/) cbScaleChanged;
-
-public:
     template Iface(alias ctx) 
     {
         @property void onScaleChanged(void delegate(float /*factor*/) cb)
@@ -29,10 +17,10 @@ public:
 package(wayland):
     void setup(Surface surface) 
     {
-        if (globalValid()) 
+        if (scale_mgr.isValid()) 
         {
             m_fscale = wp_fractional_scale_manager_v1_get_fractional_scale(
-                m_global.c_ptr, 
+                scale_mgr.c_ptr, 
                 surface.c_ptr
             );
 
@@ -52,9 +40,23 @@ package(wayland):
             m_fscale = null;
         }
     }
+
+private:
+    wp_fractional_scale_v1* m_fscale;
+    void delegate(float) cbScaleChanged;
 }
 
 private:
+
+alias ScaleManager = GlobalProxy!(wp_fractional_scale_manager_v1,
+                                    wp_fractional_scale_manager_v1_interface,
+                                    WP_FRACTIONAL_SCALE_MANAGER_V1_DESTROY);
+ScaleManager scale_mgr;
+
+static this()
+{
+    scale_mgr = new ScaleManager;
+}
 
 __gshared wp_fractional_scale_v1_listener scale_lsr =
 {
