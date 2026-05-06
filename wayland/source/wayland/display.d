@@ -9,6 +9,80 @@ import wayland.internal.core;
 import wayland.logger;
 import std.stdio;
 
+struct EventLoop 
+{
+    IEvent[] events;
+
+    // Добавить событие с fd
+    void addEventWithFd(int fd, void delegate() handler) {
+        events ~= new FdEvent(fd, handler);
+    }
+
+    // Добавить событие без fd
+    void addEventWithoutFd(void delegate() handler) {
+        events ~= new NoFdEvent(handler);
+    }
+
+    // Запустить цикл обработки событий
+    void run() {
+        // 1. Формируем массив pollfd ОДИН РАЗ перед входом в цикл.
+        // Так как цикл однопоточный, этот массив будет актуален всегда.
+        pollfd[] pfds;
+        foreach (event; events) {
+            int fd = event.getFd();
+            if (fd != -1) {
+                pfds ~= pollfd(fd, POLLIN);
+            }
+        }
+
+        bool hasFdEvents = pfds.length > 0; // Флаг для оптимизации проверки
+
+        while (true) {
+            // Если событий с дескрипторами нет, просто вызываем обработчики без fd.
+            if (!hasFdEvents) {
+                foreach (event; events) {
+                    if (event.getFd() == -1) {
+                        event.handle();
+                    }
+                }
+                continue;
+            }
+
+            // Ожидаем события от ОС.
+            int result = poll(pfds.ptr, cast(nfds_t)pfds.length, -1);
+            if (result == -1) {
+                perror("poll");
+                break;
+            }
+
+            bool fdZeroTriggered = false;
+
+            // Обрабатываем сработавшие события с fd
+            foreach (i, pfd; pfds) {
+                if (pfd.revents != 0) {
+                    if (pfd.fd == 0) {
+                        fdZeroTriggered = true;
+                    }
+                    foreach (event; events) {
+                        if (event.getFd() == pfd.fd) {
+                            event.handle();
+                        }
+                    }
+                }
+            }
+
+            // Если был активен fd 0, вызываем все обработчики событий без fd.
+            if (fdZeroTriggered) {
+                foreach (event; events) {
+                    if (event.getFd() == -1) {
+                        event.handle();
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** 
  * Статический класс для одного потока
  */
@@ -103,6 +177,21 @@ public:
     
     }
 
+    void addTask(LoopTask lt, int fd = -1)
+    {
+        if (fd < 0)
+            m_task ~= lt;
+        else {
+            m_polltask ~= lt;
+            m_fds ~= pollfd(fd, POLLIN);
+        }
+    }
+
+    void removeTask(LoopTask lt)
+    {
+
+    }
+
 package:
     static wl_display* native;
 
@@ -118,7 +207,7 @@ package:
         return instance.m_compositor;
     }
 
-    KeyTimer key_timer;
+    //KeyTimer key_timer;
 
 private:
     static Display inst;
@@ -126,10 +215,10 @@ private:
     wl_registry*   m_registry;  
     wl_compositor* m_compositor;
 
-    pollfd[EventT.count] m_fds;
+    pollfd[] m_fds;
 
     LoopTask[] m_task;
-    uint m_active_task;
+    LoopTask[] m_polltask;
 
     this(const(char)* name)
     {
@@ -157,12 +246,12 @@ private:
 
         globals = iter.protocols;
 
-        m_fds[EventT.wayland].fd = wl_display_get_fd(native);
-		m_fds[EventT.wayland].events = POLLIN;
-        m_fds[EventT.system].fd = -1; //To do add system interrupts
+        m_fds =[pollfd(wl_display_get_fd(native), POLLIN)];
+		//m_fds[EventT.wayland].events = POLLIN;
+        //m_fds[EventT.system].fd = -1; //To do add system interrupts
 
-        m_fds[EventT.key].fd = -1;
-        m_fds[EventT.key].events = POLLIN;
+        //m_fds[EventT.key].fd = -1;
+        //m_fds[EventT.key].events = POLLIN;
     }
 }
 
@@ -171,7 +260,7 @@ interface LoopTask
     //void activate(ref Display);
     //void deactivate();
     bool isClosed();
-    void invoke();   
+    void invoke(int fd = -1);   
 }
 
 // interface EventLoop
